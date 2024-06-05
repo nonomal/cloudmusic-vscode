@@ -1,8 +1,8 @@
-FROM rustembedded/cross:armv7-unknown-linux-gnueabihf
+FROM ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:latest
 
 ENV PKG_CONFIG_ALLOW_CROSS 1
 ENV PKG_CONFIG_PATH /usr/lib/arm-linux-gnueabihf/pkgconfig/
 
 RUN dpkg --add-architecture armhf && \
   apt-get update && \
-  apt-get install libasound2-dev:armhf -y \
+  apt-get install -y libasound2-dev:armhf libdbus-1-dev:armhf \

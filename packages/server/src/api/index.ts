@@ -1,2 +1,1 @@
-export * from "./helper";
-export * as NeteaseAPI from "./netease";
+export * as NeteaseAPI from "./netease/index.js";

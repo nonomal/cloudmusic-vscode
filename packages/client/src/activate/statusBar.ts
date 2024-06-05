@@ -1,12 +1,12 @@
-import { IPC, MultiStepInput, State, Webview, pickUser } from "../utils";
-import { ButtonManager } from "../manager";
+import { IPC, LyricType, MultiStepInput, STATE, Webview, pickUser } from "../utils/index.js";
+import { BUTTON_MANAGER } from "../manager/index.js";
 import type { ExtensionContext } from "vscode";
-import type { InputStep } from "../utils";
+import type { InputStep } from "../utils/index.js";
 import { commands } from "vscode";
-import i18n from "../i18n";
+import i18n from "../i18n/index.js";
 
 export function initStatusBar(context: ExtensionContext): void {
-  ButtonManager.init();
+  BUTTON_MANAGER.init();
 
   context.subscriptions.push(
     commands.registerCommand("cloudmusic.lyric", async () => {
@@ -17,7 +17,7 @@ export function initStatusBar(context: ExtensionContext): void {
       const enum Type {
         delay,
         type,
-        full,
+        all,
         cache,
         disable,
         user,
@@ -26,7 +26,7 @@ export function initStatusBar(context: ExtensionContext): void {
       }
 
       await MultiStepInput.run(async (input) => {
-        const { time, text, user } = State.lyric[State.lyric.type];
+        const user = STATE.lyric.user[<0 | 1>STATE.lyric.type];
         const { type } = await input.showQuickPick({
           title,
           step: 1,
@@ -39,54 +39,39 @@ export function initStatusBar(context: ExtensionContext): void {
             },
             {
               label: `$(symbol-type-parameter) ${
-                State.lyric.type === "o"
-                  ? i18n.word.translation
-                  : i18n.word.original
+                STATE.lyric.type === LyricType.ori
+                  ? i18n.word.original
+                  : STATE.lyric.type === LyricType.tra
+                    ? i18n.word.translation
+                    : i18n.word.romanization
               }`,
               type: Type.type,
             },
+            { label: `$(list-ordered) ${i18n.word.fullLyric}`, type: Type.all },
+            { label: `$(trash) ${i18n.word.cleanCache}`, type: Type.cache },
             {
-              label: `$(list-ordered) ${i18n.word.fullLyric}`,
-              type: Type.full,
-            },
-            {
-              label: `$(trash) ${i18n.word.cleanCache}`,
-              type: Type.cache,
-            },
-            {
-              label: State.showLyric
+              label: STATE.showLyric
                 ? `$(circle-slash) ${i18n.word.disable}`
                 : `$(circle-large-outline) ${i18n.word.enable}`,
               type: Type.disable,
             },
-            ...(user
-              ? [{ label: `$(account) ${i18n.word.user}`, type: Type.user }]
-              : []),
-            {
-              label: `$(text-size) ${i18n.word.fontSize}`,
-              type: Type.font,
-            },
-            {
-              label: `$(book) ${i18n.sentence.label.showInEditor}`,
-              type: Type.panel,
-            },
+            ...(user ? [{ label: `$(account) ${i18n.word.user}`, type: Type.user }] : []),
+            { label: `$(book) ${i18n.sentence.label.showInEditor}`, type: Type.panel },
           ],
         });
         switch (type) {
           case Type.delay:
             return (input) => inputDelay(input);
-          case Type.full:
-            return (input) => pickLyric(input, time, text);
-          case Type.font:
-            return (input) => inputFontSize(input);
+          case Type.all:
+            return (input) => pickLyric(input);
           case Type.type:
-            State.lyric.type = State.lyric.type === "o" ? "t" : "o";
+            STATE.lyric.type = (STATE.lyric.type + 1) % 3;
             break;
           case Type.cache:
             IPC.lyric();
             break;
           case Type.disable:
-            State.showLyric = !State.showLyric;
+            STATE.showLyric = !STATE.showLyric;
             break;
           case Type.user:
             return (input) => pickUser(input, 2, user?.userid || 0);
@@ -98,61 +83,34 @@ export function initStatusBar(context: ExtensionContext): void {
       });
 
       async function inputDelay(input: MultiStepInput): Promise<InputStep> {
-        const delay = await input.showInputBox({
-          title,
-          step: 2,
-          totalSteps,
-          prompt: i18n.sentence.hint.lyricDelay,
-        });
-        if (/^-?[0-9]+([.]{1}[0-9]+){0,1}$/.test(delay))
-          IPC.lyricDelay(parseFloat(delay));
+        const delay = await input.showInputBox({ title, step: 2, totalSteps, prompt: i18n.sentence.hint.lyricDelay });
+        if (/^-?[0-9]+([.]{1}[0-9]+){0,1}$/.test(delay)) IPC.lyricDelay(parseFloat(delay));
         return input.stay();
       }
 
-      async function inputFontSize(input: MultiStepInput) {
-        const size = await input.showInputBox({
-          title,
-          step: 2,
-          totalSteps,
-          prompt: i18n.sentence.hint.lyricFontSize,
-        });
-        if (/^\d+$/.test(size)) State.lyric.updateFontSize?.(parseInt(size));
-        return input.stay();
-      }
-
-      async function pickLyric(
-        input: MultiStepInput,
-        time: readonly number[],
-        text: readonly string[]
-      ): Promise<InputStep> {
+      async function pickLyric(input: MultiStepInput): Promise<InputStep> {
         const pick = await input.showQuickPick({
           title,
           step: 2,
           totalSteps: totalSteps + 1,
-          items: time.map((v, i) => ({
-            label: text[i],
-            description: `${v}`,
-          })),
+          items: STATE.lyric.time
+            .map((time, i) => ({ label: STATE.lyric.text[i][STATE.lyric.type], description: `${time}` }))
+            .filter(({ label }) => label),
         });
         select = pick.label;
         return (input) => showLyric(input);
       }
 
       async function showLyric(input: MultiStepInput) {
-        await input.showInputBox({
-          title,
-          step: 3,
-          totalSteps: totalSteps + 1,
-          value: select,
-        });
+        await input.showInputBox({ title, step: 3, totalSteps: totalSteps + 1, value: select });
       }
     }),
 
     commands.registerCommand("cloudmusic.fmTrash", () => {
-      if (State.fm && typeof State.playItem?.valueOf === "number") {
-        void IPC.netease("fmTrash", [State.playItem.valueOf]);
+      if (STATE.fmUid && typeof STATE.playItem?.valueOf === "number") {
+        void IPC.netease("fmTrash", [STATE.playItem.valueOf]);
         void commands.executeCommand("cloudmusic.next");
       }
-    })
+    }),
   );
 }

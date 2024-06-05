@@ -1,98 +1,83 @@
-import { MusicCache } from "./cache";
-import { NeteaseAPI } from "./api";
-import type { Readable } from "stream";
-import { State } from "./state";
-import { TMP_DIR } from "./constant";
-import axios from "axios";
-import { createWriteStream } from "fs";
-import { resolve } from "path";
+import { MUSIC_CACHE } from "./cache.js";
+import { STATE } from "./state.js";
+import { TMP_DIR } from "./constant.js";
+import { createWriteStream } from "node:fs";
+import { got } from "got";
+import { resolve } from "node:path";
+import { rm } from "node:fs/promises";
+import { songUrl } from "./api/netease/song.js";
 
-export const logError = (err: unknown): void =>
-  console.error(
-    Date.now(),
-    typeof err === "object"
-      ? (err as Partial<Error>)?.stack
-        ? (err as Partial<Error>).stack
-        : (err as Partial<Error>)?.message
-        ? (err as Partial<Error>).message
-        : err
-      : err
-  );
+export const logError = (err: unknown): void => {
+  if (err) {
+    console.error(
+      new Date().toISOString(),
+      typeof err === "object" ? (<Partial<Error>>err)?.stack || (<Partial<Error>>err)?.message || err : err,
+    );
+  }
+};
 
-export async function getMusicPath(
-  id: number,
-  wasm?: boolean
-): Promise<string | void> {
+const gotConfig = <const>{ isStream: true, http2: true, timeout: { request: 80000 } };
+
+export async function getMusicPath(id: number, name: string): Promise<string> {
   const idS = `${id}`;
-  const cachaUrl = MusicCache.get(idS);
+  const cachaUrl = MUSIC_CACHE.get(idS);
   if (cachaUrl) return cachaUrl;
 
-  const { url, md5 } = await NeteaseAPI.songUrl(idS);
-  if (!url) return;
-
+  const { url, md5 } = await songUrl(id);
+  if (!url) throw Error();
   const tmpUri = resolve(TMP_DIR, idS);
-  const download = await getMusic(url, idS, tmpUri, !State.fm, md5);
-  if (!download) return;
+  const download = got(url, gotConfig).once("end", () => void MUSIC_CACHE.put(idS, `${name}-${idS}`, tmpUri, md5));
 
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      download.destroy();
-      resolve();
-    }, 30000);
-    const ret = () => {
-      clearTimeout(timer);
-      resolve(tmpUri);
-    };
-
+  return new Promise((resolve, reject) => {
+    const file = createWriteStream(tmpUri);
     let len = 0;
     const onData = ({ length }: { length: number }) => {
       len += length;
-      if (len > State.minSize) {
+      if (len > STATE.minSize) {
         download.removeListener("data", onData);
-        ret();
+        resolve(tmpUri);
       }
     };
-
-    const file = createWriteStream(tmpUri);
-    if (wasm) {
-      file.once("finish", () => {
-        file.close();
-        ret();
-      });
-    } else download.on("data", onData);
-    download.once("error", resolve).pipe(file);
+    download
+      .once("error", (err) => {
+        rm(tmpUri, { force: true }).catch(() => undefined);
+        reject(err);
+      })
+      .on("data", onData)
+      .pipe(file);
   });
 }
 
-export async function getMusic(
-  url: string,
-  fn: string,
-  path: string,
-  cache: boolean,
-  md5?: string
-): Promise<Readable | void> {
-  try {
-    const { data } = await axios.get<Readable>(url, {
-      responseType: "stream",
-      timeout: 8000,
-    });
-    if (cache) data.on("end", () => void MusicCache.put(fn, path, md5));
-    return data;
-  } catch (err) {
-    logError(err);
-  }
-  return;
+export async function getMusicPathClean(id: number, name: string): Promise<string> {
+  const idS = `${id}`;
+  const cachaUrl = MUSIC_CACHE.get(idS);
+  if (cachaUrl) return cachaUrl;
+  const { url, md5 } = await songUrl(id);
+  if (!url) throw Error();
+
+  const tmpUri = resolve(TMP_DIR, idS);
+  return new Promise((resolve, reject) => {
+    const file = createWriteStream(tmpUri);
+    got(url, gotConfig)
+      .once("error", (err) => {
+        rm(tmpUri, { force: true }).catch(() => undefined);
+        reject(err);
+      })
+      .once(
+        "end",
+        () =>
+          void MUSIC_CACHE.put(idS, `${name}-${idS}`, tmpUri, md5).then((target) => {
+            rm(tmpUri, { force: true }).catch(() => undefined);
+            target ? resolve(target) : reject();
+          }),
+      )
+      .pipe(file);
+  });
 }
 
-export async function downloadMusic(
-  url: string,
-  fn: string,
-  path: string,
-  cache: boolean,
-  md5?: string
-): Promise<void> {
-  const download = await getMusic(url, fn, path, cache, md5);
-  if (!download) return;
-  const file = createWriteStream(path);
-  download.pipe(file);
+export function downloadMusic(url: string, path: string) {
+  try {
+    const file = createWriteStream(path);
+    got(url, gotConfig).pipe(file);
+  } catch {}
 }

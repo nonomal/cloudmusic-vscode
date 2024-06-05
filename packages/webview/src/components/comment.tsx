@@ -1,6 +1,6 @@
 import type { CommentCMsg, CommentCSMsg } from "@cloudmusic/shared";
-import React, { useState } from "react";
 import { request, vscode } from "../utils";
+import { useCallback, useState } from "react";
 import { FiThumbsUp } from "react-icons/fi";
 import type { NeteaseTypings } from "api";
 import dayjs from "dayjs";
@@ -23,50 +23,47 @@ export const Comment = ({
   beReplied,
 }: CommentProps): JSX.Element => {
   const [l, setL] = useState(liked);
+  const likeAction = useCallback(() => {
+    request<boolean, CommentCSMsg>({ command: "like", id: commentId, t: l ? "unlike" : "like" })
+      .then((res) => {
+        if (res) setL(!l);
+      })
+      .catch(console.error);
+  }, [commentId, l]);
+
   return (
     <div className="box-border w-full my-4 rounded-xl bg-black bg-opacity-20 shadow-md flex flex-row p-4 overflow-hidden">
       <img
         className="cursor-pointer rounded-full h-16 w-16"
         src={user.avatarUrl}
         alt={user.nickname}
-        onClick={() =>
-          vscode.postMessage({
-            msg: { command: "user", id: user.userId },
-          } as CommentCMsg)
-        }
+        onClick={() => {
+          const data: Omit<CommentCMsg, "channel"> = { msg: { command: "user", id: user.userId } };
+          vscode.postMessage(data);
+        }}
       />
       <div className="flex-1 ml-4 text-base">
         <div>
           <div
             className="cursor-pointer inline-block text-blue-600 text-lg"
-            onClick={() =>
-              vscode.postMessage({
-                msg: {
-                  command: "user",
-                  id: user.userId,
-                },
-              } as CommentCMsg)
-            }
+            onClick={() => {
+              const data: Omit<CommentCMsg, "channel"> = { msg: { command: "user", id: user.userId } };
+              vscode.postMessage(data);
+            }}
           >
             {user.nickname}
           </div>
-          <div className="inline-block ml-4 text-sm">
-            {dayjs(time).fromNow()}
-          </div>
+          <div className="inline-block ml-4 text-sm">{dayjs(time).fromNow()}</div>
         </div>
         <div className="mt-1">{content}</div>
         {beReplied && (
           <div className="text-base mt-1 ml-2 p-2 rounded-xl border-solid border-blue-600">
             <div
               className="cursor-pointer inline-block text-blue-600"
-              onClick={() =>
-                vscode.postMessage({
-                  msg: {
-                    command: "user",
-                    id: beReplied.user.userId,
-                  },
-                } as CommentCMsg)
-              }
+              onClick={() => {
+                const data: Omit<CommentCMsg, "channel"> = { msg: { command: "user", id: beReplied.user.userId } };
+                vscode.postMessage(data);
+              }}
             >
               @{beReplied.user.nickname}
             </div>
@@ -75,20 +72,7 @@ export const Comment = ({
         )}
         <div className="mt-1">
           <div className="inline-block">
-            <div
-              className="cursor-pointer inline-block"
-              onClick={async () => {
-                if (
-                  await request<boolean, CommentCSMsg>({
-                    command: "like",
-                    id: commentId,
-                    t: l ? "unlike" : "like",
-                  })
-                ) {
-                  setL(!l);
-                }
-              }}
-            >
+            <div className="cursor-pointer inline-block" onClick={likeAction}>
               <FiThumbsUp size={13} color={l ? "#2563EB" : undefined} />
             </div>
             <div className="inline-block ml-2">{likedCount}</div>

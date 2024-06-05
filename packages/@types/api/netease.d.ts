@@ -41,12 +41,11 @@ export namespace NeteaseTypings {
     os?: OS;
     requestId?: string;
     channel?: string;
-    // eslint-disable-next-line @typescript-eslint/naming-convention
+    /* eslint-disable @typescript-eslint/naming-convention */
     __csrf?: string;
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     MUSIC_A?: string;
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     MUSIC_U?: string;
+    /* eslint-enable @typescript-eslint/naming-convention */
   };
 
   export type Profile = {
@@ -96,17 +95,10 @@ export namespace NeteaseTypings {
     alia: string[];
     ar: { id: number; name: string }[];
     al: { id: number; name: string; picUrl: string };
+    mv: number | undefined;
   };
 
-  export type SongsItemSt = {
-    name: string;
-    id: number;
-    dt: number;
-    alia: string[];
-    ar: { id: number; name: string }[];
-    al: { id: number; name: string; picUrl: string };
-    privilege: { st: number };
-  };
+  export type SongsItemSt = SongsItem & { privilege: { st: number } };
 
   export type RecordData = SongsItem & { playCount: number };
 
@@ -118,6 +110,7 @@ export namespace NeteaseTypings {
     artists: { id: number; name: string }[];
     album: { id: number; name: string; picUrl: string };
     privilege: { st: number };
+    mvid: number;
   };
 
   export type AlbumsItem = {
@@ -162,15 +155,10 @@ export namespace NeteaseTypings {
     userid: number;
   };
 
-  type LyricSpecifyData = {
-    time: readonly number[];
-    text: readonly string[];
-    user?: LyricUser;
-  };
-
   export type LyricData = {
-    o: LyricSpecifyData;
-    t: LyricSpecifyData;
+    time: readonly number[];
+    text: readonly [string, string, string][];
+    user: [LyricUser?, LyricUser?];
   };
 
   export type CommentRet = {
@@ -236,5 +224,20 @@ export namespace NeteaseTypings {
     coverUrl: string;
     description: string;
     id: number;
+  };
+
+  export type MvDetail = {
+    name: string;
+    cover: string;
+    // briefDesc: string;
+    // desc: string | null;
+    // playCount: number;
+    // subCount: number;
+    // shareCount: number;
+    // commentCount: number;
+    // duration: number;
+    // publishTime: string;
+    brs: { size: number; br: number; point: number }[];
+    // commentThreadId: string;
   };
 }

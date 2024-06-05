@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
-    "isolatedModules": true,
-    "jsx": "react",
-    "lib": ["es2020", "DOM", "DOM.Iterable"],
-    "module": "commonjs",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "moduleResolution": "node",
     "noEmit": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -13,16 +13,10 @@
     "noImplicitThis": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "resolveJsonModule": true,
     "strict": true,
-    "strictNullChecks": true,
-    "target": "es2020",
-    "types": [
-      "api",
-      "react",
-      "react-dom",
-      "vscode-webview",
-      "wicg-mediasession"
-    ]
+    "target": "ES2022",
+    "types": ["api", "react", "react-dom", "vscode-webview"]
   },
   "include": ["src"]
 }

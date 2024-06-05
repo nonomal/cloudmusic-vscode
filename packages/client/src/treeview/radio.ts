@@ -1,20 +1,15 @@
-import {
-  EventEmitter,
-  ThemeIcon,
-  TreeItem,
-  TreeItemCollapsibleState,
-} from "vscode";
-import type { PlayTreeItem, PlayTreeItemData } from ".";
-import { AccountManager } from "../manager";
-import { IPC } from "../utils";
+import { EventEmitter, ThemeIcon, TreeItem, TreeItemCollapsibleState } from "vscode";
+import type { PlayTreeItem, PlayTreeItemData } from "./index.js";
+import type { TreeDataProvider, TreeView } from "vscode";
+import { AccountManager } from "../manager/index.js";
+import { IPC } from "../utils/index.js";
 import type { NeteaseTypings } from "api";
-import type { TreeDataProvider } from "vscode";
-import { UserTreeItem } from ".";
-import i18n from "../i18n";
+import { UserTreeItem } from "./index.js";
+import i18n from "../i18n/index.js";
 
-export class RadioProvider
-  implements TreeDataProvider<UserTreeItem | RadioTreeItem | ProgramTreeItem>
-{
+type Content = UserTreeItem | RadioTreeItem | ProgramTreeItem;
+
+export class RadioProvider implements TreeDataProvider<Content> {
   private static _instance: RadioProvider;
 
   private static readonly _actions = new WeakMap<
@@ -22,9 +17,9 @@ export class RadioProvider
     { resolve: (value: PlayTreeItemData[]) => void; reject: () => void }
   >();
 
-  _onDidChangeTreeData = new EventEmitter<
-    UserTreeItem | RadioTreeItem | ProgramTreeItem | void
-  >();
+  readonly view!: TreeView<Content>;
+
+  _onDidChangeTreeData = new EventEmitter<UserTreeItem | RadioTreeItem | ProgramTreeItem | void>();
 
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
@@ -39,53 +34,47 @@ export class RadioProvider
   static refreshUser(element: UserTreeItem): void {
     IPC.deleteCache(`dj_sublist${element.uid}`);
     this._instance._onDidChangeTreeData.fire(element);
+    void this._instance.view.reveal(element, { expand: true });
   }
 
-  static async refreshRadio(
-    element: RadioTreeItem
-  ): Promise<readonly PlayTreeItemData[]> {
+  static async refreshRadio(element: RadioTreeItem): Promise<readonly PlayTreeItemData[]> {
     const old = this._actions.get(element);
     old?.reject();
     return new Promise((resolve, reject) => {
       this._actions.set(element, { resolve, reject });
       this._instance._onDidChangeTreeData.fire(element);
+      void this._instance.view.reveal(element, { expand: true });
     });
   }
 
   static refreshRadioHard(element: RadioTreeItem): void {
     IPC.deleteCache(`dj_program${element.valueOf}`);
     this._instance._onDidChangeTreeData.fire(element);
+    void this._instance.view.reveal(element, { expand: true });
   }
 
-  getTreeItem(
-    element: UserTreeItem | RadioTreeItem | ProgramTreeItem
-  ): UserTreeItem | RadioTreeItem | ProgramTreeItem {
+  getTreeItem(element: Content): Content {
     return element;
   }
 
   async getChildren(
-    element?: UserTreeItem | RadioTreeItem
+    element?: UserTreeItem | RadioTreeItem,
   ): Promise<UserTreeItem[] | RadioTreeItem[] | ProgramTreeItem[]> {
     if (!element) {
       const accounts = [];
-      for (const [, { userId, nickname }] of AccountManager.accounts)
-        accounts.push(UserTreeItem.new(nickname, userId));
+      for (const [, { userId, nickname }] of AccountManager.accounts) accounts.push(UserTreeItem.new(nickname, userId));
       return accounts;
     }
     if (element instanceof UserTreeItem) {
       const { uid } = element;
-      return (await AccountManager.djradio(uid)).map((radio) =>
-        RadioTreeItem.new(radio)
-      );
+      return (await AccountManager.djradio(uid)).map((radio) => RadioTreeItem.new(radio, uid));
     }
     const {
       uid,
       item: { id: pid, programCount },
     } = element;
     const programs = await IPC.netease("djProgram", [uid, pid, programCount]);
-    const ret = programs.map((program) =>
-      ProgramTreeItem.new({ ...program, pid })
-    );
+    const ret = programs.map((program) => ProgramTreeItem.new({ ...program, pid, itemType: "p" }));
     const action = RadioProvider._actions.get(element);
     if (action) {
       RadioProvider._actions.delete(element);
@@ -93,24 +82,33 @@ export class RadioProvider
     }
     return ret;
   }
+
+  getParent(element: Content): undefined | UserTreeItem | RadioTreeItem {
+    if (element instanceof UserTreeItem) return;
+    if (element instanceof RadioTreeItem) return UserTreeItem.unsafeGet(element.uid);
+    return RadioTreeItem.unsafeGet(element.data.pid);
+  }
 }
 
 export class RadioTreeItem extends TreeItem {
   private static readonly _set = new Map<number, RadioTreeItem>();
 
-  override readonly label!: string;
-
-  override readonly tooltip = `${i18n.word.description}: ${this.item.desc || ""}
-${i18n.word.trackCount}: ${this.item.programCount}
-${i18n.word.playCount}: ${this.item.playCount}
-${i18n.word.subscribedCount}: ${this.item.subCount}`;
+  declare readonly label: string;
 
   override readonly iconPath = new ThemeIcon("rss");
 
   override readonly contextValue = "RadioTreeItem";
 
-  constructor(readonly item: NeteaseTypings.RadioDetail, public uid: number) {
+  constructor(
+    readonly item: NeteaseTypings.RadioDetail,
+    public uid: number,
+  ) {
     super(item.name, TreeItemCollapsibleState.Collapsed);
+
+    this.tooltip = `${i18n.word.description}: ${item.desc || ""}
+${i18n.word.trackCount}: ${item.programCount}
+${i18n.word.playCount}: ${item.playCount}
+${i18n.word.subscribedCount}: ${item.subCount}`;
   }
 
   override get valueOf(): number {
@@ -127,6 +125,11 @@ ${i18n.word.subscribedCount}: ${this.item.subCount}`;
     this._set.set(item.id, element);
     return element;
   }
+
+  static unsafeGet(pid: number): RadioTreeItem {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this._set.get(pid)!;
+  }
 }
 
 export type ProgramTreeItemData = NeteaseTypings.ProgramDetail & {
@@ -137,19 +140,15 @@ export type ProgramTreeItemData = NeteaseTypings.ProgramDetail & {
 export class ProgramTreeItem extends TreeItem implements PlayTreeItem {
   private static readonly _set = new Map<number, ProgramTreeItem>();
 
-  override readonly label!: string;
+  declare readonly label: string;
 
-  override readonly description = this.data.mainSong.ar
-    .map(({ name }) => name)
-    .join("/");
+  override readonly description: string;
 
-  override readonly tooltip = this.data.dj.nickname;
+  override readonly tooltip: string;
 
   override readonly iconPath = new ThemeIcon("radio-tower");
 
   override readonly contextValue = "ProgramTreeItem";
-
-  readonly item = this.data.mainSong;
 
   override command = {
     title: "Detail",
@@ -158,24 +157,23 @@ export class ProgramTreeItem extends TreeItem implements PlayTreeItem {
   };
 
   private constructor(readonly data: ProgramTreeItemData) {
-    super(
-      `${data.mainSong.name}${
-        data.mainSong.alia[0] ? ` (${data.mainSong.alia.join("/")})` : ""
-      }`
-    );
+    super(`${data.mainSong.name}${data.mainSong.alia[0] ? ` (${data.mainSong.alia.join("/")})` : ""}`);
+
+    this.description = data.mainSong.ar.map(({ name }) => name).join("/");
+    this.tooltip = data.dj.nickname;
   }
 
   override get valueOf(): number {
     return this.data.id;
   }
 
-  static new(data: Omit<ProgramTreeItemData, "itemType">): ProgramTreeItem {
+  static new(data: ProgramTreeItemData): ProgramTreeItem {
     let element = this._set.get(data.id);
     if (element) {
       if (data.pid) element.data.pid = data.pid;
       return element;
     }
-    element = new this({ ...data, itemType: "p" });
+    element = new this(data);
     this._set.set(data.id, element);
     return element;
   }

@@ -8,6 +8,10 @@
   "[typescriptreact]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
+  "deno.config": "./deno.json",
+  "deno.enablePaths": [
+    "./scripts"
+  ],
   "eslint.nodePath": ".yarn/sdks",
   "files.exclude": {
     "out": false
@@ -22,7 +26,10 @@
     "**/node_modules/**": true,
     "**/target/**": true
   },
-  "prettier.prettierPath": ".yarn/sdks/prettier/index.js",
+  "markdownlint.config": {
+    "MD024": false
+  },
+  "prettier.prettierPath": ".yarn/sdks/prettier/index.cjs",
   "search.exclude": {
     ".cache": true,
     ".yarn": true,

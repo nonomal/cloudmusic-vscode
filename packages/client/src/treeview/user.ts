@@ -7,7 +7,10 @@ export class UserTreeItem extends TreeItem {
 
   override readonly contextValue = "UserTreeItem";
 
-  constructor(override readonly label: string, readonly uid: number) {
+  constructor(
+    override readonly label: string,
+    readonly uid: number,
+  ) {
     super(label, TreeItemCollapsibleState.Collapsed);
   }
 
@@ -17,5 +20,10 @@ export class UserTreeItem extends TreeItem {
     element = new this(label, uid);
     this._set.set(uid, element);
     return element;
+  }
+
+  static unsafeGet(uid: number): UserTreeItem {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this._set.get(uid)!;
   }
 }

@@ -1,13 +1,6 @@
-import type {
-  Disposable,
-  InputBox,
-  QuickInput,
-  QuickInputButton,
-  QuickPick,
-  QuickPickItem,
-} from "vscode";
+import type { Disposable, InputBox, QuickInput, QuickInputButton, QuickPick, QuickPickItem } from "vscode";
 import { QuickInputButtons, ThemeIcon, window } from "vscode";
-import i18n from "../i18n";
+import i18n from "../i18n/index.js";
 
 const enum InputFlowAction {
   back,
@@ -43,22 +36,10 @@ const pickButtons: {
   next: QuickInputButton;
   close: QuickInputButton;
 } = {
-  forward: {
-    iconPath: new ThemeIcon("arrow-right"),
-    tooltip: i18n.word.forward,
-  },
-  previous: {
-    iconPath: new ThemeIcon("arrow-up"),
-    tooltip: i18n.word.previousPage,
-  },
-  next: {
-    iconPath: new ThemeIcon("arrow-down"),
-    tooltip: i18n.word.nextPage,
-  },
-  close: {
-    iconPath: new ThemeIcon("close"),
-    tooltip: i18n.word.close,
-  },
+  forward: { iconPath: new ThemeIcon("arrow-right"), tooltip: i18n.word.forward },
+  previous: { iconPath: new ThemeIcon("arrow-up"), tooltip: i18n.word.previousPage },
+  next: { iconPath: new ThemeIcon("arrow-down"), tooltip: i18n.word.nextPage },
+  close: { iconPath: new ThemeIcon("close"), tooltip: i18n.word.close },
 };
 
 export const enum ButtonAction {
@@ -75,37 +56,35 @@ interface QuickPickOption extends ButtonOption {
 }
 
 export class MultiStepInput {
-  private _step = 0;
+  #step = 0;
 
-  private _current?: QuickInput;
+  #current?: QuickInput;
 
-  private readonly _steps: InputStep[] = [];
+  readonly #steps: InputStep[] = [];
 
-  static async run(start: InputStep): Promise<void> {
+  static run(start: InputStep): Promise<void> {
     const input = new MultiStepInput();
-    return input.stepThrough(start);
+    return input.#stepThrough(start);
   }
 
   stay(step?: InputStep): InputStep {
-    --this._step;
-    if (step) this._steps[this._step] = step;
-    return this._steps[this._step];
+    --this.#step;
+    if (step) this.#steps[this.#step] = step;
+    return this.#steps[this.#step];
   }
 
+  async showQuickPick<T extends QuickPickItem>(_: QuickPickParameters<T>): Promise<T>;
   async showQuickPick<T extends QuickPickItem>(
-    _: QuickPickParameters<T>
-  ): Promise<T>;
-  async showQuickPick<T extends QuickPickItem>(
-    _: QuickPickParameters<T> & { canSelectMany: true }
+    _: QuickPickParameters<T> & { canSelectMany: true },
   ): Promise<readonly T[]>;
   async showQuickPick<T extends QuickPickItem>(
-    _: QuickPickParameters<T> & Required<ButtonOption>
+    _: QuickPickParameters<T> & Required<ButtonOption>,
   ): Promise<T | ButtonAction>;
   async showQuickPick<T extends QuickPickItem>(
-    _: QuickPickParameters<T> & Required<QuickPickOption>
+    _: QuickPickParameters<T> & Required<QuickPickOption>,
   ): Promise<readonly T[] | ButtonAction>;
 
-  async showQuickPick<T extends QuickPickItem>({
+  showQuickPick<T extends QuickPickItem>({
     title,
     step,
     totalSteps,
@@ -116,82 +95,58 @@ export class MultiStepInput {
     canSelectMany,
     previous,
     next,
-  }: QuickPickParameters<T> & QuickPickOption): Promise<
-    readonly T[] | T | ButtonAction
-  > {
+  }: QuickPickParameters<T> & QuickPickOption): Promise<readonly T[] | T | ButtonAction> {
     const disposables: Disposable[] = [];
-    try {
-      return await new Promise<readonly T[] | T | ButtonAction>(
-        (resolve, reject) => {
-          const input = window.createQuickPick<T>();
-          input.canSelectMany = !!canSelectMany;
-          input.matchOnDescription = true;
-          input.matchOnDetail = true;
-          input.ignoreFocusOut = true;
-          input.title = title;
-          input.step = step;
-          input.totalSteps = Math.max(
-            totalSteps || 1,
-            this._step,
-            this._steps.length
-          );
-          input.placeholder = placeholder;
-          input.items = items;
-          /* if (activeItems) {
+
+    return new Promise<readonly T[] | T | ButtonAction>((resolve, reject) => {
+      const input = window.createQuickPick<T>();
+      input.canSelectMany = !!canSelectMany;
+      input.matchOnDescription = true;
+      input.matchOnDetail = true;
+      input.ignoreFocusOut = true;
+      input.title = title;
+      input.step = step;
+      input.totalSteps = Math.max(totalSteps || 1, this.#step, this.#steps.length);
+      input.placeholder = placeholder;
+      input.items = items;
+      /* if (activeItems) {
             input.activeItems = activeItems;
           } */
-          const button: QuickInputButton[] = [];
-          if (previous) button.push(pickButtons.previous);
-          if (next) button.push(pickButtons.next);
-          input.buttons = [
-            ...(this._step > 1 ? [QuickInputButtons.Back] : []),
-            ...button,
-            ...(this._step < this._steps.length ? [pickButtons.forward] : []),
-            pickButtons.close,
-          ];
-          disposables.push(
-            input.onDidTriggerButton((item) => {
-              switch (item) {
-                case QuickInputButtons.Back:
-                  reject(InputFlowAction.back);
-                  break;
-                case pickButtons.forward:
-                  reject(InputFlowAction.forward);
-                  break;
-                case pickButtons.previous:
-                  resolve(ButtonAction.previous);
-                  break;
-                case pickButtons.next:
-                  resolve(ButtonAction.next);
-                  break;
-                default:
-                  input.hide();
-              }
-            }),
-            input.onDidAccept(() =>
-              resolve(
-                canSelectMany ? input.selectedItems : input.selectedItems[0]
-              )
-            ),
-            input.onDidHide(() => reject(InputFlowAction.cancel))
-          );
-          if (changeCallback)
-            disposables.push(
-              input.onDidChangeValue((value) => changeCallback(input, value))
-            );
-          if (this._current) this._current.dispose();
-          this._current = input;
-          this._current.show();
-        }
+      const button: QuickInputButton[] = [];
+      if (previous) button.push(pickButtons.previous);
+      if (next) button.push(pickButtons.next);
+      input.buttons = [
+        ...(this.#step > 1 ? [QuickInputButtons.Back] : []),
+        ...button,
+        ...(this.#step < this.#steps.length ? [pickButtons.forward] : []),
+        pickButtons.close,
+      ];
+      disposables.push(
+        input.onDidTriggerButton((item) => {
+          switch (item) {
+            case QuickInputButtons.Back:
+              return reject(InputFlowAction.back);
+            case pickButtons.forward:
+              return reject(InputFlowAction.forward);
+            case pickButtons.previous:
+              return resolve(ButtonAction.previous);
+            case pickButtons.next:
+              return resolve(ButtonAction.next);
+            default:
+              return input.hide();
+          }
+        }),
+        input.onDidAccept(() => resolve(canSelectMany ? input.selectedItems : input.selectedItems[0])),
+        input.onDidHide(() => reject(InputFlowAction.cancel)),
       );
-    } finally {
-      disposables.forEach((d) => {
-        d.dispose();
-      });
-    }
+      if (changeCallback) disposables.push(input.onDidChangeValue((value) => changeCallback(input, value)));
+      if (this.#current) this.#current.dispose();
+      this.#current = input;
+      this.#current.show();
+    }).finally(() => disposables.forEach((d) => void d.dispose()));
   }
 
-  async showInputBox({
+  showInputBox({
     title,
     step,
     totalSteps,
@@ -201,85 +156,67 @@ export class MultiStepInput {
     changeCallback,
   }: InputBoxParameters): Promise<string> {
     const disposables: Disposable[] = [];
-    try {
-      return await new Promise<string>((resolve, reject) => {
-        const input = window.createInputBox();
-        input.ignoreFocusOut = true;
-        input.title = title;
-        input.step = step;
-        input.totalSteps = Math.max(
-          totalSteps || 1,
-          this._step,
-          this._steps.length
-        );
-        input.value = value || "";
-        input.prompt = prompt;
-        input.buttons = [
-          ...(this._step > 1 ? [QuickInputButtons.Back] : []),
-          ...(this._step < this._steps.length ? [pickButtons.forward] : []),
-          pickButtons.close,
-        ];
-        input.password = password || false;
-        disposables.push(
-          input.onDidTriggerButton((item) => {
-            switch (item) {
-              case QuickInputButtons.Back:
-                reject(InputFlowAction.back);
-                break;
-              case pickButtons.forward:
-                reject(InputFlowAction.forward);
-                break;
-              default:
-                input.hide();
-                break;
-            }
-          }),
-          input.onDidAccept(() => {
-            const value = input.value;
-            resolve(value);
-          }),
-          input.onDidHide(() => reject(InputFlowAction.cancel))
-        );
-        if (changeCallback)
-          disposables.push(
-            input.onDidChangeValue((value) => changeCallback(input, value))
-          );
-        if (this._current) this._current.dispose();
-        this._current = input;
-        this._current.show();
-      });
-    } finally {
-      disposables.forEach((d) => {
-        d.dispose();
-      });
-    }
+
+    return new Promise<string>((resolve, reject) => {
+      const input = window.createInputBox();
+      input.ignoreFocusOut = true;
+      input.title = title;
+      input.step = step;
+      input.totalSteps = Math.max(totalSteps || 1, this.#step, this.#steps.length);
+      input.value = value || "";
+      input.prompt = prompt;
+      input.buttons = [
+        ...(this.#step > 1 ? [QuickInputButtons.Back] : []),
+        ...(this.#step < this.#steps.length ? [pickButtons.forward] : []),
+        pickButtons.close,
+      ];
+      input.password = password || false;
+      disposables.push(
+        input.onDidTriggerButton((item) => {
+          switch (item) {
+            case QuickInputButtons.Back:
+              return reject(InputFlowAction.back);
+            case pickButtons.forward:
+              return reject(InputFlowAction.forward);
+            default:
+              return input.hide();
+          }
+        }),
+        input.onDidAccept(() => resolve((value = input.value))),
+        input.onDidHide(() => reject(InputFlowAction.cancel)),
+      );
+      if (changeCallback) disposables.push(input.onDidChangeValue((value) => changeCallback(input, value)));
+      if (this.#current) this.#current.dispose();
+      this.#current = input;
+      this.#current.show();
+    }).finally(() => disposables.forEach((d) => void d.dispose()));
   }
 
-  private async stepThrough(start: InputStep): Promise<void> {
+  async #stepThrough(start: InputStep): Promise<void> {
     let step: InputStep | void = start;
-    ++this._step;
-    this._steps.push(step);
+    ++this.#step;
+    this.#steps.push(step);
     while (step) {
-      if (this._current) {
-        this._current.enabled = false;
-        this._current.busy = true;
+      if (this.#current) {
+        this.#current.enabled = false;
+        this.#current.busy = true;
       }
       try {
         step = await step(this);
         if (step) {
-          while (this._steps.length > this._step) this._steps.pop();
-          ++this._step;
-          this._steps.push(step);
+          while (this.#steps.length > this.#step) this.#steps.pop();
+          ++this.#step;
+          this.#steps.push(step);
         }
       } catch (err) {
         switch (err) {
           case InputFlowAction.back:
-            --this._step;
-            step = this._steps[this._step - 1];
+            --this.#step;
+            step = this.#steps[this.#step - 1];
             break;
           case InputFlowAction.forward:
-            ++this._step;
-            step = this._steps[this._step - 1];
+            ++this.#step;
+            step = this.#steps[this.#step - 1];
             break;
           case InputFlowAction.cancel:
             step = undefined;
@@ -291,6 +228,6 @@ export class MultiStepInput {
         }
       }
     }
-    if (this._current) this._current.dispose();
+    if (this.#current) this.#current.dispose();
   }
 }

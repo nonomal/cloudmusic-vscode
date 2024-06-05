@@ -1,8 +1,8 @@
-export * from "./radio";
-export * from "./local";
-export * from "./playlist";
-export * from "./queue";
-export * from "./user";
+export * from "./radio.js";
+export * from "./local.js";
+export * from "./playlist.js";
+export * from "./queue.js";
+export * from "./user.js";
 
 import type {
   LocalFileTreeItem,
@@ -11,21 +11,14 @@ import type {
   ProgramTreeItemData,
   QueueItemTreeItem,
   QueueItemTreeItemData,
-} from ".";
+} from "./index.js";
 import type { ThemeIcon, TreeItem } from "vscode";
-import type { NeteaseTypings } from "api";
 
-export type QueueContent =
-  | QueueItemTreeItem
-  | LocalFileTreeItem
-  | ProgramTreeItem;
+export type QueueContent = QueueItemTreeItem | LocalFileTreeItem | ProgramTreeItem;
 
 export type TreeItemId = "q" | "p" | "l";
 
-export type PlayTreeItemData =
-  | LocalFileTreeItemData
-  | ProgramTreeItemData
-  | QueueItemTreeItemData;
+export type PlayTreeItemData = LocalFileTreeItemData | ProgramTreeItemData | QueueItemTreeItemData;
 
 export interface PlayTreeItem extends TreeItem {
   readonly iconPath: ThemeIcon;
@@ -34,6 +27,5 @@ export interface PlayTreeItem extends TreeItem {
   readonly description: string;
   readonly tooltip: string;
   readonly data: PlayTreeItemData;
-  readonly item: NeteaseTypings.SongsItem;
   valueOf: number | string;
 }

@@ -1,7 +1,5 @@
 {
   "name": "@types/qrcode",
   "version": "1.4.0",
-  "dependencies": {
-    "@types/node": "*"
-  }
+  "type": "module"
 }

@@ -13,7 +13,7 @@ const baseNodeTsRules = {
 };
 
 /**
- * @param {string[]} files -
+ * @param {string} files -
  * @param {string} project -
  * @returns {import('eslint').Linter.ConfigOverride} -
  */
@@ -27,7 +27,7 @@ const nodeTsConfig = (files, project) => ({
   files,
   parserOptions: {
     ecmaVersion: 10,
-    project,
+    project: `${__dirname}${project}`,
     sourceType: "module",
   },
   plugins: ["@typescript-eslint", "prettier"],
@@ -35,7 +35,7 @@ const nodeTsConfig = (files, project) => ({
 });
 
 /**
- * @param {string[]} files -
+ * @param {string} files -
  * @param {string} project -
  * @returns {import('eslint').Linter.ConfigOverride} -
  */
@@ -52,11 +52,15 @@ const browserTsConfig = (files, project) => ({
   files,
   parserOptions: {
     ecmaVersion: 10,
-    project,
+    project: `${__dirname}${project}`,
     sourceType: "module",
   },
   plugins: ["@typescript-eslint", "prettier", "react"],
-  rules: baseNodeTsRules,
+  rules: {
+    ...baseNodeTsRules,
+    "react/jsx-uses-react": "off",
+    "react/react-in-jsx-scope": "off",
+  },
   settings: { react: { version: "17.0" } },
 });
 
@@ -64,11 +68,7 @@ const browserTsConfig = (files, project) => ({
 const config = {
   env: { browser: false, node: true },
   extends: ["eslint:recommended", "plugin:prettier/recommended"],
-  ignorePatterns: [
-    "./packages/wasi/**/*.*",
-    "./packages/wasm/**/*.*",
-    "*.jsom",
-  ],
+  ignorePatterns: ["/packages/wasi/**/*.*", "/packages/wasm/**/*.*", "/scripts/**/*.*", "*.json"],
   parser: "@typescript-eslint/parser",
   plugins: ["prettier"],
   rules: {
@@ -89,26 +89,11 @@ const config = {
     ],
   },
   overrides: [
-    nodeTsConfig(
-      ["./packages/@types/**/*.ts"],
-      "./packages/@types/tsconfig.json"
-    ),
-    nodeTsConfig(
-      ["./packages/client/**/*.ts"],
-      "./packages/client/tsconfig.json"
-    ),
-    nodeTsConfig(
-      ["./packages/server/**/*.ts"],
-      "./packages/server/tsconfig.json"
-    ),
-    nodeTsConfig(
-      ["./packages/shared/**/*.ts"],
-      "./packages/shared/tsconfig.json"
-    ),
-    browserTsConfig(
-      ["./packages/webview/**/*.ts", "./packages/webview/**/*.tsx"],
-      "./packages/webview/tsconfig.json"
-    ),
+    nodeTsConfig("./packages/@types/**/*.ts", "/packages/@types/tsconfig.json"),
+    nodeTsConfig("./packages/client/**/*.ts", "/packages/client/tsconfig.json"),
+    nodeTsConfig("./packages/server/**/*.ts", "/packages/server/tsconfig.json"),
+    nodeTsConfig("./packages/shared/**/*.ts", "/packages/shared/tsconfig.json"),
+    browserTsConfig("./packages/webview/**/*.ts*", "/packages/webview/tsconfig.json"),
   ],
 };
 

@@ -1,13 +1,13 @@
-import { CACHE_KEY, LYRIC_CACHE_KEY, MUSIC_CACHE_DIR_NAME } from "../constant";
+import { CACHE_KEY, CONF, LYRIC_CACHE_KEY, MUSIC_QUALITY } from "../constant/index.js";
 import type { ExtensionContext } from "vscode";
-import { IPC } from "../utils";
+import { IPC } from "../utils/index.js";
 import { workspace } from "vscode";
 
 export function initCache(context: ExtensionContext): void {
   const updateMQ = () => {
-    if (context.globalState.get<string>(CACHE_KEY) !== MUSIC_CACHE_DIR_NAME())
-      IPC.music();
-    void context.globalState.update(CACHE_KEY, MUSIC_CACHE_DIR_NAME());
+    const MQ = `${MUSIC_QUALITY(CONF())}`;
+    if (context.globalState.get<string>(CACHE_KEY) !== MQ) IPC.cache();
+    void context.globalState.update(CACHE_KEY, MQ);
   };
 
   updateMQ();
@@ -19,8 +19,8 @@ export function initCache(context: ExtensionContext): void {
     workspace.onDidChangeConfiguration(({ affectsConfiguration }) => {
       if (affectsConfiguration("cloudmusic")) {
         updateMQ();
-        IPC.init();
+        IPC.setting();
       }
-    })
+    }),
   );
 }

@@ -1,57 +1,41 @@
-import { AccountState, resolveComment } from "./helper";
-import { eapiRequest, weapiRequest } from "./request";
-import { NeteaseEnum } from "@cloudmusic/shared";
+import { eapiRequest, weapiRequest } from "./request.js";
+import type { NeteaseCommentType } from "@cloudmusic/shared";
+import { NeteaseSortType } from "@cloudmusic/shared";
 import type { NeteaseTypings } from "api";
+import { resolveComment } from "./helper.js";
 
-const resourceTypeMap = [
-  "R_SO_4_",
-  "R_MV_5_",
-  "A_PL_0_",
-  "R_AL_3_",
-  "A_DJ_1_",
-  "R_VI_62_",
-  "A_EV_2_",
-];
+const resourceTypeMap = ["R_SO_4_", "R_MV_5_", "A_PL_0_", "R_AL_3_", "A_DJ_1_", "R_VI_62_", "A_EV_2_", "A_DR_14_"];
 
-export async function commentAdd(
-  type: NeteaseEnum.CommentType,
-  id: number,
-  content: string
-): Promise<boolean> {
-  return !!(await weapiRequest(
-    `music.163.com/weapi/resource/comments/add`,
-    { threadId: `${resourceTypeMap[type]}${id}`, content },
-    { ...AccountState.defaultCookie, os: "pc" }
-  ));
+export async function commentAdd(type: NeteaseCommentType, id: number, content: string): Promise<boolean> {
+  return !!(await weapiRequest(`music.163.com/weapi/resource/comments/add`, {
+    threadId: `${resourceTypeMap[type]}${id}`,
+    content,
+  }));
 }
 
 export async function commentReply(
-  type: NeteaseEnum.CommentType,
+  type: NeteaseCommentType,
   id: number,
   content: string,
-  commentId: number
+  commentId: number,
 ): Promise<boolean> {
-  return !!(await weapiRequest(
-    `music.163.com/weapi/resource/comments/reply`,
-    { threadId: `${resourceTypeMap[type]}${id}`, content, commentId },
-    { ...AccountState.defaultCookie, os: "pc" }
-  ));
+  return !!(await weapiRequest(`music.163.com/weapi/resource/comments/reply`, {
+    threadId: `${resourceTypeMap[type]}${id}`,
+    content,
+    commentId,
+  }));
 }
 
 export async function commentFloor(
-  type: NeteaseEnum.CommentType,
+  type: NeteaseCommentType,
   id: number,
   parentCommentId: number,
   limit: number,
-  time: number
+  time: number,
 ): Promise<NeteaseTypings.CommentRet> {
   const res = await weapiRequest<{
-    data: {
-      totalCount: number;
-      hasMore: boolean;
-      comments: readonly NeteaseTypings.RawCommentDetail[];
-    };
-  }>("music.163.com/api/resource/comment/floor/get", {
+    data: { totalCount: number; hasMore: boolean; comments: readonly NeteaseTypings.RawCommentDetail[] };
+  }>("music.163.com/weapi/resource/comment/floor/get", {
     parentCommentId,
     threadId: `${resourceTypeMap[type]}${id}`,
     time,
@@ -61,68 +45,47 @@ export async function commentFloor(
   const {
     data: { totalCount, hasMore, comments },
   } = res;
-  return {
-    totalCount,
-    hasMore,
-    comments: comments.map(resolveComment),
-  };
+  return { totalCount, hasMore, comments: comments.map(resolveComment) };
 }
 
 export async function commentLike(
-  type: NeteaseEnum.CommentType,
+  type: NeteaseCommentType,
   t: "like" | "unlike",
   id: number,
-  commentId: number
+  commentId: number,
 ): Promise<boolean> {
-  return !!(await weapiRequest(
-    `music.163.com/weapi/v1/comment/${t}`,
-    { threadId: `${resourceTypeMap[type]}${id}`, commentId },
-    { ...AccountState.defaultCookie, os: "pc" }
-  ));
+  return !!(await weapiRequest(`music.163.com/weapi/v1/comment/${t}`, {
+    threadId: `${resourceTypeMap[type]}${id}`,
+    commentId,
+  }));
 }
 
 export async function commentNew(
-  type: NeteaseEnum.CommentType,
+  type: NeteaseCommentType,
   id: number,
   pageNo: number,
   pageSize: number,
-  sortType: NeteaseEnum.SortType,
-  cursor: number | string
+  sortType: NeteaseSortType,
+  cursor: number | string,
 ): Promise<NeteaseTypings.CommentRet> {
   switch (sortType) {
-    case NeteaseEnum.SortType.recommendation:
+    case NeteaseSortType.recommendation:
       cursor = (pageNo - 1) * pageSize;
       break;
-    case NeteaseEnum.SortType.hottest:
+    case NeteaseSortType.hottest:
       cursor = `normalHot#${(pageNo - 1) * pageSize}`;
       break;
   }
   const res = await eapiRequest<{
-    data: {
-      totalCount: number;
-      hasMore: boolean;
-      comments: readonly NeteaseTypings.RawCommentDetail[];
-    };
+    data: { totalCount: number; hasMore: boolean; comments: readonly NeteaseTypings.RawCommentDetail[] };
   }>(
-    "music.163.com/api/v2/resource/comments",
-    {
-      threadId: `${resourceTypeMap[type]}${id}`,
-      pageNo,
-      showInner: true,
-      pageSize,
-      cursor,
-      sortType,
-    },
+    "music.163.com/eapi/v2/resource/comments",
+    { threadId: `${resourceTypeMap[type]}${id}`, pageNo, showInner: true, pageSize, cursor, sortType },
     "/api/v2/resource/comments",
-    { ...AccountState.defaultCookie, os: "pc" }
   );
   if (!res) return { totalCount: 0, hasMore: false, comments: [] };
   const {
     data: { totalCount, hasMore, comments },
   } = res;
-  return {
-    totalCount,
-    hasMore,
-    comments: comments.map(resolveComment),
-  };
+  return { totalCount, hasMore, comments: comments.map(resolveComment) };
 }

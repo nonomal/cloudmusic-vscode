@@ -4,19 +4,22 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     name: Test
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
@@ -24,14 +27,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: cargo-cache
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # - name: Setup nightly rust
+      #   run: rustup default nightly
 
       - name: Install rust target
         run: rustup target add wasm32-unknown-unknown
@@ -40,8 +47,10 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build wasm
-        run: wasm-pack build crates/wasm/ --out-dir ../../packages/wasm --out-name index
+        run: wasm-pack build crates/wasm/ --dev --out-dir ../../packages/wasm --out-name index
 
       - run: yarn
-      - name: Test
-        run: yarn test
+      - name: Check
+        run: yarn check
+      - name: Lint
+        run: yarn lint

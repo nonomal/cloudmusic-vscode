@@ -4,16 +4,67 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "watch",
-      "problemMatcher": "$tsc-watch",
-      "isBackground": true,
-      "presentation": {
-        "reveal": "never"
-      },
+      "type": "shell",
+      "label": "cargo: update",
+      "command": "cargo update",
       "group": {
-        "kind": "build",
-        "isDefault": true
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "cargo: build macmedia",
+      "command": "cargo build --release --package cloudmusic-macmedia",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "cargo: build",
+      "command": "cargo build --release",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "yarn: update",
+      "command": "rm yarn.lock && yarn && yarn dlx @yarnpkg/sdks vscode vim",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "yarn: self-update",
+      "command": "yarn set version canary",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "yarn: check",
+      "command": "yarn check",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "yarn: lint",
+      "command": "yarn lint",
+      "group": {
+        "kind": "build"
+      }
+    },
+    {
+      "type": "shell",
+      "label": "yarn: package",
+      "command": "yarn build-dev && yarn dlx @vscode/vsce package --no-dependencies",
+      "group": {
+        "kind": "build"
       }
     }
   ]

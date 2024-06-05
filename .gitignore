@@ -18,6 +18,7 @@ yarn-error.log
 target
 index.node
 artifacts.json
+crates/macmedia/media
 
 # cache and build file
 .cache
@@ -26,4 +27,3 @@ build
 out
 dist
 **/*.vsix
-packages/webview/src/tooltip.js

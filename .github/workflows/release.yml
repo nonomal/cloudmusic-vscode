@@ -8,20 +8,24 @@ on:
 jobs:
   build-macos:
     name: Build for macos
-    runs-on: macos-11
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: cargo-cache
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # - name: Setup nightly rust
+      #   run: rustup default nightly
 
       - name: Install rust target
         run: |
@@ -29,54 +33,73 @@ jobs:
           rustup target add aarch64-apple-darwin
 
       - name: Build x86-64
-        run: cargo build --release --target=x86_64-apple-darwin
+        run: |
+          cargo build --release --target=x86_64-apple-darwin
+          cargo build --release --target=x86_64-apple-darwin --package cloudmusic-macmedia
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-x86_64
           path: crates/native/index.node
 
-      - name: Build aarch64
-        run: cargo build --release --target=aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-media-x86_64
+          path: crates/macmedia/media
 
-      - uses: actions/upload-artifact@v2
+      - name: Build aarch64
+        run: |
+          cargo build --release --target=aarch64-apple-darwin
+          cargo build --release --target=aarch64-apple-darwin --package cloudmusic-macmedia
+
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-aarch64
           path: crates/native/index.node
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-media-aarch64
+          path: crates/macmedia/media
+
   build-linux:
     name: Build for linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Installing needed Ubuntu dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev
+          sudo apt-get install -y libasound2-dev \
+            libdbus-1-dev \
           # sudo apt-get install -y libx11-dev
 
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: cargo-cache
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # - name: Setup nightly rust
+      #   run: rustup default nightly
 
       - name: Install rust target
         run: |
           rustup target add x86_64-unknown-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
-          rustup target add armv7-unknown-linux-gnueabihf
+          # rustup target add aarch64-unknown-linux-gnu
+          # rustup target add armv7-unknown-linux-gnueabihf
 
       - name: Build x86-64
         run: cargo build --release --target x86_64-unknown-linux-gnu
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-x86_64
           path: crates/native/index.node
@@ -86,6 +109,7 @@ jobs:
           docker build -t cross/aarch64:v1 -f docker/Dockerfile.aarch64-unknown-linux-gnu .
           docker build -t cross/armv7:v1 -f docker/Dockerfile.armv7-unknown-linux-gnueabihf .
 
+      - run: cargo clean
       - name: Build aarch64
         uses: actions-rs/cargo@v1
         with:
@@ -93,11 +117,12 @@ jobs:
           use-cross: true
           args: --release --target aarch64-unknown-linux-gnu
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-aarch64
           path: crates/native/index.node
 
+      - run: cargo clean
       - name: Build armv7
         uses: actions-rs/cargo@v1
         with:
@@ -105,7 +130,7 @@ jobs:
           use-cross: true
           args: --release --target armv7-unknown-linux-gnueabihf
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-armv7
           path: crates/native/index.node
@@ -116,22 +141,26 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1.5.0
+        uses: KyleMayes/install-llvm-action@v2
         with:
-          version: "11"
+          version: "17"
           directory: ${{ runner.temp }}/llvm
 
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: cargo-cache
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # - name: Setup nightly rust
+      #   run: rustup default nightly
 
       - name: Install rust target
         run: |
@@ -143,7 +172,7 @@ jobs:
         env:
           LIBCLANG_PATH: ${{ runner.temp }}/llvm/bin
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-x86_64
           path: crates/native/index.node
@@ -153,7 +182,7 @@ jobs:
         env:
           LIBCLANG_PATH: ${{ runner.temp }}/llvm/bin
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-aarch64
           path: crates/native/index.node
@@ -164,28 +193,37 @@ jobs:
     needs: [build-macos, build-linux, build-windows]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: download build
-        uses: actions/download-artifact@v2
+      - name: Download build
+        uses: actions/download-artifact@v4
         with:
           path: .artifact
 
       - name: Copy file
         run: |
           mkdir -p build
-          cp .artifact/Linux-armv7/index.node     build/linux-arm.node
-          cp .artifact/macOS-aarch64/index.node   build/darwin-arm64.node
-          cp .artifact/Linux-aarch64/index.node   build/linux-arm64.node
-          cp .artifact/Windows-aarch64/index.node build/win32-arm64.node
-          cp .artifact/macOS-x86_64/index.node    build/darwin-x64.node
-          cp .artifact/Linux-x86_64/index.node    build/linux-x64.node
-          cp .artifact/Windows-x86_64/index.node  build/win32-x64.node
+          mkdir -p .artifact/build
+          mkdir -p .artifact/media
+          cp .artifact/Linux-armv7/index.node     .artifact/build/linux-arm.node
+          cp .artifact/macOS-aarch64/index.node   .artifact/build/darwin-arm64.node
+          cp .artifact/Linux-aarch64/index.node   .artifact/build/linux-arm64.node
+          cp .artifact/Windows-aarch64/index.node .artifact/build/win32-arm64.node
+          cp .artifact/macOS-x86_64/index.node    .artifact/build/darwin-x64.node
+          cp .artifact/Linux-x86_64/index.node    .artifact/build/linux-x64.node
+          cp .artifact/Windows-x86_64/index.node  .artifact/build/win32-x64.node
+          cp .artifact/macOS-media-aarch64/media  .artifact/media/darwin-arm64-media
+          cp .artifact/macOS-media-x86_64/media   .artifact/media/darwin-x64-media
+
+      - name: Modify Permission
+        run: |
+          sudo chmod +x .artifact/media/darwin-arm64-media
+          sudo chmod +x .artifact/media/darwin-x64-media
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
@@ -193,14 +231,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - uses: actions/cache@v2.1.7
+      - uses: actions/cache@v4
         id: cargo-cache
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      # - name: Setup nightly rust
+      #   run: rustup default nightly
 
       - name: Install rust target
         run: rustup target add wasm32-unknown-unknown
@@ -211,18 +257,14 @@ jobs:
       - name: Build wasm
         run: wasm-pack build crates/wasm/ --out-dir ../../packages/wasm --out-name index
 
-      - name: Package
+      - name: Install dependencies
+        run: yarn
+
+      - name: Publish
         run: |
-          yarn
-          yarn dlx vsce package
+          VSCE_TOKEN=${{ secrets.VSCE_TOKEN }} OVSX_TOKEN=${{ secrets.OVSX_TOKEN }} yarn publish
           echo "VSIX_PATH=$(find . -maxdepth 1 -type f -iname "*.vsix" | head -1)" >> $GITHUB_ENV
           echo "VSIX_NAME=$(basename $(find . -maxdepth 1 -type f -iname "*.vsix" | head -1))" >> $GITHUB_ENV
-
-      - name: Publish to Visual Studio Marketplace
-        run: yarn dlx vsce publish --packagePath ${{ env.VSIX_PATH }} -p ${{ secrets.VSCE_TOKEN }}
-
-      - name: Publish to Open VSX Registry
-        run: yarn dlx ovsx publish ${{ env.VSIX_PATH }} -p ${{ secrets.OVSX_TOKEN }}
 
       - uses: actions/create-release@v1
         id: create_release

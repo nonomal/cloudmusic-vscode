@@ -1,23 +1,11 @@
-import { homedir, platform } from "os";
-import {
-  ipcAppspace,
-  ipcBroadcastServerId,
-  ipcServerId,
-} from "@cloudmusic/shared";
-import { resolve } from "path";
+import { ipcAppspace, ipcBroadcastServerId, ipcServerId } from "@cloudmusic/shared";
 
 export const ipcServerPath =
-  platform() === "win32"
-    ? `\\\\.\\pipe\\${`/tmp/${ipcAppspace}${ipcServerId}`
-        .replace(/^\//, "")
-        .replace(/\//g, "-")}`
-    : `/tmp/${ipcAppspace}${ipcServerId}`;
+  process.platform === "win32" ? `\\\\.\\pipe\\tmp-${ipcAppspace}${ipcServerId}` : `/tmp/${ipcAppspace}${ipcServerId}`;
 
 export const ipcBroadcastServerPath =
-  platform() === "win32"
-    ? `\\\\.\\pipe\\${`/tmp/${ipcAppspace}${ipcBroadcastServerId}`
-        .replace(/^\//, "")
-        .replace(/\//g, "-")}`
+  process.platform === "win32"
+    ? `\\\\.\\pipe\\tmp-${ipcAppspace}${ipcBroadcastServerId}`
     : `/tmp/${ipcAppspace}${ipcBroadcastServerId}`;
 
-export const SETTING_DIR = resolve(homedir(), ".cloudmusic");
+export const NATIVE_MODULE = `${process.platform}-${process.arch}.node`;

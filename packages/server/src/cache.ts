@@ -1,24 +1,15 @@
-import { CACHE_DIR, LYRIC_CACHE_DIR, MUSIC_CACHE_DIR } from "./constant";
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  readdir,
-  rmdir,
-  stat,
-  unlink,
-  writeFile,
-} from "fs/promises";
+import { CACHE_DIR, LYRIC_CACHE_DIR, MUSIC_CACHE_DIR } from "./constant.js";
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import type { NeteaseTypings } from "api";
+import type { Node } from "yallist";
 import NodeCache from "node-cache";
-import { State } from "./state";
-import Yallist from "yallist";
-import { logError } from "./utils";
+import { STATE } from "./state.js";
+import { Yallist } from "yallist";
+import { logError } from "./utils.js";
 import md5File from "md5-file";
-import { resolve } from "path";
-import { writeFileSync } from "fs";
+import { resolve } from "node:path";
 
-export const apiCache = new NodeCache({
+export const API_CACHE = new NodeCache({
   stdTTL: 300,
   checkperiod: 600,
   useClones: false,
@@ -29,169 +20,129 @@ export const apiCache = new NodeCache({
 
 type LyricCacheItem = NeteaseTypings.LyricData & { ctime: number };
 
-export class LyricCache {
-  static clear(): void {
-    rmdir(LYRIC_CACHE_DIR, { recursive: true })
-      .catch(() => {
-        //
-      })
+class LyricCache {
+  clear(): void {
+    rm(LYRIC_CACHE_DIR, { recursive: true })
+      .catch(() => undefined)
       .then(() => mkdir(LYRIC_CACHE_DIR, { recursive: true }))
-      .catch(() => {
-        //
-      });
+      .catch(() => undefined);
   }
 
-  static async get(key: string): Promise<LyricCacheItem | void> {
+  async get(key: string): Promise<LyricCacheItem | void> {
     try {
       const path = resolve(LYRIC_CACHE_DIR, key);
-      const data = JSON.parse(
-        (await readFile(path)).toString()
-      ) as LyricCacheItem;
+      const data = <LyricCacheItem>JSON.parse((await readFile(path)).toString());
       // 7 * 24 * 60 * 60 * 1000
       if (Date.now() - data.ctime < 604800000) return data;
-      void unlink(path);
+      rm(path, { recursive: true, force: true }).catch(() => undefined);
     } catch {}
     return;
   }
 
-  static put(key: string, data: LyricCacheItem): void {
-    try {
-      void writeFile(
-        resolve(LYRIC_CACHE_DIR, key),
-        Buffer.from(JSON.stringify(data), "utf8")
-      );
-    } catch {}
+  put(key: string, data: LyricCacheItem): void {
+    writeFile(resolve(LYRIC_CACHE_DIR, key), Buffer.from(JSON.stringify(data), "utf8")).catch(() => undefined);
   }
 }
 
+export const LYRIC_CACHE = new LyricCache();
+
 type MusicCacheNode = {
+  name: string;
   key: string;
   size: number;
 };
 
-export class MusicCache {
-  private static _size = 0;
+class MusicCache {
+  #size = 0;
 
-  private static readonly _list = new Yallist<MusicCacheNode>();
+  readonly #list = new Yallist<MusicCacheNode>();
 
-  private static readonly _cache = new Map<
-    string,
-    Yallist.Node<MusicCacheNode>
-  >();
+  readonly #cache = new Map<string, Node<MusicCacheNode>>();
 
-  private static readonly _listPath = resolve(CACHE_DIR, "music-list");
+  readonly #listPath = resolve(CACHE_DIR, "music-list");
 
-  static async init(): Promise<void> {
-    const set = new Set(
-      (await readdir(MUSIC_CACHE_DIR, { withFileTypes: true }))
-        .filter((i) => i.isFile())
-        .map(({ name }) => name)
+  async init(): Promise<void> {
+    const names = new Set(
+      (await readdir(MUSIC_CACHE_DIR, { withFileTypes: true })).filter((i) => i.isFile()).map(({ name }) => name),
     );
+
     try {
-      const list = JSON.parse(
-        (await readFile(this._listPath)).toString()
-      ) as readonly MusicCacheNode[];
+      const list = <readonly MusicCacheNode[]>JSON.parse((await readFile(this.#listPath)).toString());
+
       list
-        .filter(({ key }) => set.has(key))
+        .filter(({ name }) => names.has(name))
         .reverse()
         .forEach((value) => {
-          set.delete(value.key);
-          this._addNode(value);
+          names.delete(value.name);
+          this.#addNode(value);
         });
-    } catch (err) {
-      logError(err);
-    }
+    } catch {}
+    this.store().catch(logError);
 
-    try {
-      const names = [...set];
-      (
-        await Promise.all(
-          names.map((name) => stat(resolve(MUSIC_CACHE_DIR, name)))
-        )
-      ).forEach(({ size }, index) =>
-        this._addNode({ key: names[index], size })
-      );
-      this.store();
-    } catch (err) {
-      logError(err);
+    for (const name of names) {
+      const path = resolve(MUSIC_CACHE_DIR, name);
+      rm(path, { recursive: true, force: true }).catch(logError);
     }
   }
 
-  static clear(): void {
-    rmdir(MUSIC_CACHE_DIR, { recursive: true })
-      .catch(() => {
-        //
-      })
+  clear(): void {
+    rm(MUSIC_CACHE_DIR, { recursive: true })
+      .catch(() => undefined)
       .then(() => mkdir(MUSIC_CACHE_DIR, { recursive: true }))
-      .catch(() => {
-        //
-      });
-    this._cache.clear();
-    this._size = 0;
-    while (this._list.length) this._list.pop();
-    this.store();
+      .catch(() => undefined);
+    this.#cache.clear();
+    this.#size = 0;
+    while (this.#list.length) this.#list.pop();
+    this.store().catch(logError);
   }
 
-  static store(): void {
-    try {
-      writeFileSync(this._listPath, JSON.stringify(this._list.toArray()));
-    } catch (err) {
-      logError(err);
-    }
+  store(): Promise<void> {
+    const json = JSON.stringify(this.#list.toArray());
+    return writeFile(this.#listPath, json);
   }
 
-  static get(key: string): string | void {
-    const node = this._cache.get(key);
+  get(key: string): string | void {
+    const node = this.#cache.get(key);
     if (node) {
-      this._list.unshiftNode(node);
-      return resolve(MUSIC_CACHE_DIR, key);
+      this.#list.unshiftNode(node);
+      return resolve(MUSIC_CACHE_DIR, node.value.name);
     }
-    /* try {
-      const { type, size } = await workspace.fs.stat(path);
-      if (type !== FileType.File) throw Error();
-      const node = this.cache.get(key);
-      if (node) {
-        this.list.unshiftNode(node);
-      } else {
-        this.addNode({ key, size });
-      }
-      return path.fsPath;
-    } catch {
-      this.deleteNode(key);
-    } 
-    return; */
   }
 
-  static async put(key: string, path: string, md5?: string): Promise<void> {
-    const target = resolve(MUSIC_CACHE_DIR, key);
+  async put(key: string, name: string, path: string, md5?: string): Promise<string | void> {
     try {
-      await copyFile(path, target);
-      const { size } = await stat(target);
-      this._deleteNode(key);
-      if (!md5 || (await md5File(target)) === md5) this._addNode({ key, size });
+      if (!md5 || (await md5File(path)) === md5) {
+        const target = resolve(MUSIC_CACHE_DIR, name);
+        await copyFile(path, target);
+        const { size } = await stat(target);
+        this.#deleteNode({ key, name });
+        this.#addNode({ key, name, size });
+        return target;
+      }
     } catch {}
   }
 
-  private static _addNode(value: MusicCacheNode) {
-    this._list.unshift(value);
-    this._cache.set(value.key, this._list.head as Yallist.Node<MusicCacheNode>);
-    this._size += value.size;
-    while (this._size > State.cacheSize) {
-      const { tail } = this._list;
-      if (tail) this._deleteNode(tail.value.key);
+  #addNode(value: MusicCacheNode) {
+    this.#list.unshift(value);
+    if (!this.#list.head) return;
+    this.#cache.set(value.key, this.#list.head);
+    this.#size += value.size;
+    while (this.#size > STATE.cacheSize) {
+      const { tail } = this.#list;
+      if (tail) this.#deleteNode(tail.value);
       else void this.clear();
     }
   }
 
-  private static _deleteNode(key: string) {
-    const node = this._cache.get(key);
+  #deleteNode({ key, name }: { key: string; name: string }) {
+    const node = this.#cache.get(key);
     if (node) {
-      this._list.removeNode(node);
-      this._cache.delete(key);
-      this._size -= node.value.size;
-      try {
-        void unlink(resolve(MUSIC_CACHE_DIR, key));
-      } catch {}
+      this.#list.removeNode(node);
+      this.#cache.delete(key);
+      this.#size -= node.value.size;
+      rm(resolve(MUSIC_CACHE_DIR, name), { recursive: true, force: true }).catch(logError);
     }
   }
 }
+
+export const MUSIC_CACHE = new MusicCache();

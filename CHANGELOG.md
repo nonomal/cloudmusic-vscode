@@ -6,6 +6,468 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [9.22.0] - 2024-06-04
+
+### Fixed
+
+- API
+- Windows playback device
+
+## [9.21.1] - 2024-05-28
+
+### Fixed
+
+- Fix deleting local library ([#974](https://github.com/YXL76/cloudmusic-vscode/issues/974))
+
+## [9.21.0] - 2024-05-28
+
+### Changed
+
+- Load local file cover on playing time
+
+## [9.20.0] - 2024-04-14
+
+### Added
+
+- Seeking
+- Show artist name in status bar ([#971](https://github.com/YXL76/cloudmusic-vscode/issues/971))
+
+### Fixed
+
+- `picUrl` too large ([#975](https://github.com/YXL76/cloudmusic-vscode/issues/975))
+- Remove powershell ([#965](https://github.com/YXL76/cloudmusic-vscode/issues/965))
+- Generate UUID for status bar items ([#953](https://github.com/YXL76/cloudmusic-vscode/issues/953))
+
+## [9.19.2] - 2023-08-26
+
+### Added
+
+- Add hint ([#919](https://github.com/YXL76/cloudmusic-vscode/issues/919))
+
+## [9.19.1] - 2023-04-03
+
+### Fixed
+
+- Player: playback interrupted ([#897](https://github.com/YXL76/cloudmusic-vscode/issues/868), [#909](https://github.com/YXL76/cloudmusic-vscode/issues/909))
+
+## [9.19.0] - 2023-03-04
+
+### Changed
+
+- Update deps
+
+### Fixed
+
+- I18n: import error ([#897](https://github.com/YXL76/cloudmusic-vscode/issues/897))
+- Media session: ignore missing view ([#909](https://github.com/YXL76/cloudmusic-vscode/issues/909))
+
+## [9.18.0] - 2023-01-19
+
+### Added
+
+- UI: fallback lyric display ([#855](https://github.com/YXL76/cloudmusic-vscode/issues/855))
+
+### Changed
+
+- Deps: update
+
+### Fixed
+
+- UI: search input loses focus ([#848](https://github.com/YXL76/cloudmusic-vscode/issues/848))
+
+## [9.17.1] - 2022-12-11
+
+### Changed
+
+- Webview: better UX
+
+### Fixed
+
+- Temporary fixes for 1.74 issues
+
+## [9.17.0] - 2022-09-24
+
+### Added
+
+- API:
+  - `countries_code_list`: login
+  - `playlist_update_playcount`: play playlist
+  - `mv_detail` and `mv_url`: support mv playback
+
+### Changed
+
+- Scripts: use `deno` runtime
+
+## [9.16.9] - 2022-09-19
+
+### Changed
+
+- Status bar: shrink image size
+
+## [9.16.8] - 2022-09-13
+
+### Changed
+
+- Treeview: use unique id ([#818](https://github.com/YXL76/cloudmusic-vscode/issues/818))
+
+### Fixed
+
+- API: `songUrl` level
+- Player: playback state
+
+## [9.16.7] - 2022-09-12
+
+### Changed
+
+- Webview: Make `spawn` async
+
+### Fixed
+
+- Cache: automatically clean up the tmp dir
+
+## [9.16.6] - 2022-09-08
+
+### Fixed
+
+- Cache: Temp folder conflict ([#812](https://github.com/YXL76/cloudmusic-vscode/issues/812))
+- Local library: check `codecProfile` ([#813](https://github.com/YXL76/cloudmusic-vscode/issues/813))
+
+## [9.16.5] - 2022-09-08
+
+### Fixed
+
+- Treeview: `LocalFileTreeItem` do not use `id` to identify
+
+### Changed
+
+- ES2022 target
+- Update minimum supported Vs Code Version to 1.67.0
+
+## [9.16.3] - 2022-09-07
+
+### Fixed
+
+- Webview: set `localResourceRoots` as fs root ([#800](https://github.com/YXL76/cloudmusic-vscode/issues/800), [#807](https://github.com/YXL76/cloudmusic-vscode/issues/807))
+
+### Changed
+
+- I18n: clearer liking status prompts ([@xuan25](https://github.com/xuan25))
+- IPC: close socket after 2s on Windows
+
+## [9.16.2] - 2022-09-04
+
+### Fixed
+
+- Player
+  - MediaSession do not conflict with native player
+  - Resume playback position when using `wasm` player
+
+## [9.16.1] - 2022-09-04
+
+### Changed
+
+- API: retry on `POST` by default
+
+## [9.16.0] - 2022-09-03
+
+### Added
+
+- Treeview: read local files' metadata ([#640](https://github.com/YXL76/cloudmusic-vscode/issues/640))
+
+## [9.15.1] - 2022-09-03
+
+### Fixed
+
+- Resume playback after reload
+
+## [9.15.0] - 2022-09-03
+
+### Added
+
+- Configuration: use `WebAudioPlayer` as default player when vscode version >= 1.71 ([microsoft/vscode#118275](https://github.com/microsoft/vscode/issues/118275))
+- Player:
+  - Add `WebAudioPlayer`
+  - Support seeking when using `WebAudioPlayer` ([#638](https://github.com/YXL76/cloudmusic-vscode/issues/638), [#776](https://github.com/YXL76/cloudmusic-vscode/issues/776))
+
+### Fixed
+
+- Commands: `cloudmusic.downloadSong` args
+
+## [9.14.4] - 2022-08-30
+
+### Fixed
+
+- API: Specify cookies once
+
+## [9.14.3] - 2022-08-30
+
+## [9.14.2] - 2022-08-29
+
+### Fixed
+
+- API: cookie version
+
+## [9.14.1] - 2022-08-28
+
+### Fixed
+
+- Server: each version uses a specific socket
+
+## [9.14.0] - 2022-08-28
+
+### Added
+
+- API:
+  - Use new `song_url_v1` interface
+  - Use `tough-cookie` to store cookies
+- Add warnning about login method
+
+### Fixed
+
+- Player: auto check output device
+- Server: set `master` immediately if the client is master
+- Treeview: expand item when refreshing
+
+## [9.13.3] - 2022-08-08
+
+### Fixed
+
+API: `loginRefresh` response
+
+## [9.13.2] - 2022-08-07
+
+### Fixed
+
+API: fix cookie parsing
+
+## [9.13.1] - 2022-08-07
+
+### Fixed
+
+- API: parse `loginRefresh` response
+
+## [9.13.0] - 2022-08-07
+
+### Added
+
+- API: remember password and refresh cookie automatically ([#777](https://github.com/YXL76/cloudmusic-vscode/issues/777), [#651](https://github.com/YXL76/cloudmusic-vscode/issues/651))
+- Player: increase process priority ([#754](https://github.com/YXL76/cloudmusic-vscode/issues/754))
+
+## [9.12.1] - 2022-07-28
+
+### Changed
+
+- Update runtime
+
+## [9.12.0] - 2022-07-17
+
+### Added
+
+- Commands: `cloudmusic.openLogFile`
+
+### Changed
+
+- Player: better performance
+
+## [9.11.0] - 2022-07-12
+
+### Added
+
+- Configuration: add `cloudmusic.network.proxy` ([#747](https://github.com/YXL76/cloudmusic-vscode/issues/747))
+
+## [9.10.6] - 2022-06-30
+
+### Fixed
+
+- IPC: message parsing
+- Tooltip: button link
+
+## [9.10.5] - 2022-06-19
+
+### Fixed
+
+- API: [Binaryify/NeteaseCloudMusicApi#1551](https://github.com/Binaryify/NeteaseCloudMusicApi/issues/1551)
+- Typo ([#724](https://github.com/YXL76/cloudmusic-vscode/pull/724) [@chen310](https://github.com/chen310))
+
+## [9.10.4] - 2022-06-15
+
+### Fixed
+
+- Server: Correctly decode URL string ([#721](https://github.com/YXL76/cloudmusic-vscode/issues/721))
+
+## [9.10.3] - 2022-06-14
+
+### Changed
+
+- Server: convert to ES Module
+
+### Fixed
+
+- API: add `X-Forwarded-For` header for foreign user
+- Native: downgrade glibc version ([#717](https://github.com/YXL76/cloudmusic-vscode/issues/717))
+
+## [9.10.2] - 2022-06-06
+
+### Fixed
+
+- [#706](https://github.com/YXL76/cloudmusic-vscode/issues/706)
+
+## [9.10.1] - 2022-06-02
+
+### Fixed
+
+- Media session: Add execute rights ([#706](https://github.com/YXL76/cloudmusic-vscode/issues/706))
+
+## [9.10.0] - 2022-05-29
+
+### Added
+
+- Media session: support macOS
+
+### Fixed
+
+- API: fix cookie
+
+## [9.9.3] - 2022-05-21
+
+### Fixed
+
+- Queue: Blocking caused by network request failure
+- Status bar: The number of icons on tooltip
+
+## [9.9.2] - 2022-05-17
+
+### Fixed
+
+- Server: listening to `uncaughtException`
+
+## [9.9.1] - 2022-05-07
+
+### Fixed
+
+- Packaging error
+
+## [9.9.0] - 2022-05-07
+
+### Added
+
+- Lyric: Support romanization ([#322](https://github.com/YXL76/cloudmusic-vscode/issues/322))
+
+### Changed
+
+- API: Use `got` to replace `axios`
+- Webview: improve performace
+
+### Fixed
+
+- API: increase maximum number of sockets
+
+## [9.8.4] - 2022-04-24
+
+### Changed
+
+- Remove `fs.rmdir`
+- Webview: Update to React 18
+- Update minimum supported Vs Code Version to 1.66.0
+
+## [9.8.3] - 2022-03-28
+
+### Changed
+
+- Media session always use fake window on Windows
+
+### Fixed
+
+- API: keep up with the upstream
+
+## [9.8.2] - 2022-01-26
+
+### Changed
+
+- Activation: change event from `*` to `onStartupFinished` ([#634](https://github.com/YXL76/cloudmusic-vscode/issues/634))
+- Player
+  - Change codec to `symphonia`
+  - Support to change the speed while playing ([#576](https://github.com/YXL76/cloudmusic-vscode/issues/576))
+- Webview: dynamic import wasm pkg
+
+### Fixed
+
+- Player: position is correctly affected by speed
+
+## [9.8.1] - 2022-01-24
+
+### Fixed
+
+- Api: add/reply comments
+- TreeView: missing listener ([#631](https://github.com/YXL76/cloudmusic-vscode/issues/631))
+
+## [9.8.0] - 2022-01-22
+
+### Added
+
+- Player: support `wav` format ([#632](https://github.com/YXL76/cloudmusic-vscode/issues/632))
+
+### Fixed
+
+- Cache: file name conflict ([#633](https://github.com/YXL76/cloudmusic-vscode/issues/633))
+- Command: `deleteLocalLibrary` index error
+
+## [9.7.2] - 2022-01-15
+
+### Fixed
+
+- Cache: prefetch path
+
+## [9.7.1] - 2022-01-15
+
+### Fixed
+
+- Player: sync issue in wasm mode
+
+## [9.7.0] - 2022-01-14
+
+### Added
+
+- Cache: save music by name
+- Configuration: `cloudmusic.host.autoStart`
+- Player: support adjusting playback speed
+- Treeview: automatically add cache directory
+
+### Fixed
+
+- Personal FM logic
+
+## [9.6.2] - 2022-01-13
+
+### Fixed
+
+- IPC: do not close socket on windows
+- Native: workflow for media session ([#591](https://github.com/YXL76/cloudmusic-vscode/issues/591))
+
+## [9.6.1] - 2022-01-13
+
+- The binaries for version `9.6.0` are all wrong!!!
+
+## [9.6.0] - 2022-01-13
+
+### Added
+
+- Commands: set the default file name for `cloudmusic.downloadSong` ([#612](https://github.com/YXL76/cloudmusic-vscode/issues/612))
+- Configuration: add `cloudmusic.cache.path` ([#620](https://github.com/YXL76/cloudmusic-vscode/issues/620))
+- Player: support native media control ([#591](https://github.com/YXL76/cloudmusic-vscode/issues/591))
+- Webview: new lyric panel ([#625](https://github.com/YXL76/cloudmusic-vscode/issues/625))
+- Package: support platform-specific extensions
+
+### Changed
+
+- Add `'use strict';` banner
+- Use `spawn` instead of `fork` to start the server
+- Use `export const enum`
+
+### Fixed
+
+- Webview: symbolic link file ([#618](https://github.com/YXL76/cloudmusic-vscode/issues/))
+
 ## [9.5.1] - 2021-11-22
 
 ### Fixed
@@ -183,7 +645,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Fixed
 
-- Parsing lyrics in uncommon format ([#486](https://github.com/YXL76/cloudmusic-vscode/pull/486)) ([@yume-chan](https://github.com/yume-chan))
+- Parsing lyrics in uncommon format ([#486](https://github.com/YXL76/cloudmusic-vscode/pull/486) [@yume-chan](https://github.com/yume-chan))
 
 ## [8.3.8] - 2021-06-25
 

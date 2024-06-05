@@ -1,12 +1,7 @@
-import type { CSMessage } from ".";
+import type { CSMessage } from "./net.js";
 import type { NeteaseTypings } from "api";
 
-export type WebviewType =
-  | "comment"
-  | "login"
-  | "description"
-  | "lyric"
-  | "musicRanking";
+export type WebviewType = "comment" | "login" | "description" | "lyric" | "musicRanking" | "video";
 
 export type CommentCSMsg =
   | { command: "init" }
@@ -19,14 +14,13 @@ export type CommentCMsg = CSMessage<{ command: "user"; id: number }, undefined>;
 /* | CSMessage<{ command: "reply"; id: number }, undefined>
   | CSMessage<{ command: "floor"; id: number }, undefined> */
 
-export type LyricSMsg =
-  | {
-      command: "lyric";
-      data: { otext: string; ttext: string };
-    }
-  | { command: "size"; data: number };
+export type LoginSMsg = { command: "message"; message: string } | { command: "key"; key: string };
 
-export type MsicRankingCMsg =
+export type LyricSMsg =
+  | { command: "lyric"; text: NeteaseTypings.LyricData["text"] }
+  | { command: "index"; idx: number };
+
+export type MusicRankingCMsg =
   | CSMessage<{ command: "song"; id: number }, undefined>
   | CSMessage<{ command: "album"; id: number }, undefined>
   | CSMessage<{ command: "artist"; id: number }, undefined>;
@@ -38,26 +32,28 @@ export type ProviderCMsg =
   | { command: "next" }
   | { command: "account"; userId: number }
   | { command: "end" }
-  | { command: "load" }
+  | { command: "load"; fail?: true }
   | { command: "position"; pos: number }
   | { command: "playing"; playing: boolean };
 
 export type ProviderSMsg =
   | { command: "master"; is: boolean }
-  | { command: "test"; files: string[] }
   | { command: "state"; state: "none" | "paused" | "playing" }
-  // | { command: "position"; position: number }
   | {
       command: "metadata";
-      // duration?: number;
-      title?: string;
-      artist?: string;
-      album?: string;
-      artwork?: { src: string; sizes?: string; type?: string }[];
+      duration?: number;
+      meta?: {
+        title?: string;
+        artist?: string;
+        album?: string;
+        artwork?: { src: string; sizes?: string; type?: string }[];
+      };
     }
   | { command: "account"; profiles: NeteaseTypings.Profile[] }
-  | { command: "load"; url: string }
+  | { command: "load"; url: string; play: boolean; seek?: number }
   | { command: "play" }
   | { command: "pause" }
   | { command: "stop" }
-  | { command: "volume"; level: number };
+  | { command: "speed"; speed: number }
+  | { command: "volume"; level: number }
+  | { command: "seek"; seekOffset: number };

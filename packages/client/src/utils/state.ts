@@ -1,184 +1,230 @@
-import { AccountManager, ButtonManager } from "../manager";
-import { AccountViewProvider, IPC } from ".";
-import {
-  FM_KEY,
-  LYRIC_KEY,
-  QUEUE_INIT,
-  REPEAT_KEY,
-  SHOW_LYRIC_KEY,
-} from "../constant";
-import { QueueItemTreeItem, QueueProvider } from "../treeview";
+import { AccountManager, BUTTON_MANAGER } from "../manager/index.js";
+import { AccountViewProvider, IPC } from "./index.js";
+import { FM_KEY, LYRIC_KEY, PLAYER_MODE, QUEUE_INIT, REPEAT_KEY, SHOW_LYRIC_KEY } from "../constant/index.js";
+import { QueueItemTreeItem, QueueProvider } from "../treeview/index.js";
 import type { ExtensionContext } from "vscode";
 import type { NeteaseTypings } from "api";
-import type { QueueContent } from "../treeview";
-import i18n from "../i18n";
+import type { QueueContent } from "../treeview/index.js";
+import i18n from "../i18n/index.js";
+import { version } from "vscode";
+
+export const enum LyricType {
+  ori = 0, // original
+  tra = 1, // translation
+  rom = 2, // romanization
+}
 
 type Lyric = {
-  type: "o" | "t";
-  updatePanel?: (oi: number, ti: number) => void;
-  updateFontSize?: (size: number) => void;
+  type: LyricType;
+  updatePanel?: (text: NeteaseTypings.LyricData["text"]) => void;
+  updateIndex?: (idx: number) => void;
 } & NeteaseTypings.LyricData;
 
-export class State {
-  static context: ExtensionContext;
+export const defaultLyric: Lyric = { type: LyricType.ori, time: [0], text: [["~", "~", "~"]], user: [] };
 
-  private static _first = false;
+export const CONTEXT = <{ context: ExtensionContext }>{};
 
-  private static _master = false;
+class State {
+  wasm =
+    PLAYER_MODE === "auto"
+      ? (() => {
+          const [major, minor] = version.split(".");
+          // Use `wasm` if version >= 1.71.0
+          // https://github.com/microsoft/vscode/issues/118275
+          return parseInt(major) >= 1 && parseInt(minor) >= 71 && parseInt(minor) < 74;
+        })()
+      : PLAYER_MODE === "wasm";
 
-  private static _repeat = false;
+  first = false;
 
-  private static _playItem?: QueueContent;
+  // To finish initialization needs 3 steps
+  // 1. Started the IPC server / Received the queue
+  // 2. Received `IPCControl.netease`
+  // 3. In native mode / `AccountViewProvider` is ready
+  #initializing = 3;
 
-  private static _like = false;
+  #master = false;
 
-  private static _fm = false;
+  #repeat = false;
 
-  private static _showLyric = false;
+  #playItem?: QueueContent;
 
-  private static _lyric: Lyric = {
-    type: "o",
-    o: { time: [0], text: ["~"] },
-    t: { time: [0], text: ["~"] },
-  };
+  #like = false;
 
-  static get master(): boolean {
-    return State._master;
+  #fmUid?: number;
+
+  #showLyric = false;
+
+  #lyric: Lyric = defaultLyric;
+
+  get master(): boolean {
+    return this.#master;
   }
 
-  static get repeat(): boolean {
-    return State._repeat;
+  get repeat(): boolean {
+    return this.#repeat;
   }
 
-  static get playItem(): QueueContent | undefined {
-    return State._playItem;
+  get playItem(): QueueContent | undefined {
+    return this.#playItem;
   }
 
-  static get like(): boolean {
-    return this._like;
+  get like(): boolean {
+    return this.#like;
   }
 
-  static get fm(): boolean {
-    return State._fm;
+  get fmUid(): number | undefined {
+    return this.#fmUid;
   }
 
-  static get showLyric(): boolean {
-    return State._showLyric;
+  get showLyric(): boolean {
+    return this.#showLyric;
   }
 
-  static get lyric(): Lyric {
-    return State._lyric;
+  get lyric(): Lyric {
+    return this.#lyric;
   }
 
-  static set first(value: boolean) {
-    if (!value) {
-      const { head } = QueueProvider;
-      this._playItem = head;
-      this.like = !!(head && head instanceof QueueItemTreeItem);
-      AccountViewProvider.metadata();
-      this.loading = false;
-      this.context.subscriptions.push(
-        QueueProvider.getInstance().onDidChangeTreeData(() => {
-          this.fm = false;
-          this.playItem = QueueProvider.head;
-        })
-      );
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set master(value: boolean) {
+    if (this.#master !== value) {
+      this.#master = value;
+      AccountViewProvider.master();
+      // if (this.#master) IPC.pid();
     }
-    if (this._first !== value) {
-      this._first = value;
-      if (value || QUEUE_INIT === "none") return;
-      if (QUEUE_INIT === "restore") {
-        IPC.retain();
-      } else if (AccountManager.accounts.size) {
-        const [[uid]] = AccountManager.accounts;
-        void IPC.netease("recommendSongs", [uid]).then((songs) =>
-          IPC.new(
-            songs.map(
-              (song) => QueueItemTreeItem.new({ ...song, pid: song.al.id }).data
-            )
-          )
-        );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set repeat(value: boolean) {
+    this.#repeat = value;
+    BUTTON_MANAGER.buttonRepeat(value);
+    if (this.#master) void CONTEXT.context.globalState.update(REPEAT_KEY, value);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set playItem(value: QueueContent | undefined) {
+    if (value !== this.#playItem) {
+      this.#setPlayItem(value);
+      if (this.#master) value ? IPC.load() : IPC.stop();
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set like(newValue: boolean) {
+    if (newValue !== this.#like) {
+      this.#like = newValue;
+      BUTTON_MANAGER.buttonLike();
+    }
+  }
+
+  set loading(value: boolean) {
+    // if (value === this.#loading) return;
+    BUTTON_MANAGER.buttonSong(value ? `$(loading~spin) ${i18n.word.song}: ${i18n.word.loading}` : this.#playItem);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set fmUid(value: number | undefined) {
+    if (this.#fmUid !== value) {
+      this.#fmUid = value;
+      BUTTON_MANAGER.buttonPrevious(!!value);
+      if (this.#master) {
+        if (this.#fmUid) {
+          IPC.netease("personalFm", [this.#fmUid, true])
+            .then((i) => i && (this.playItem = QueueItemTreeItem.new({ ...i, pid: i.al.id, itemType: "q" })))
+            .catch(console.error);
+        }
+        void CONTEXT.context.globalState.update(FM_KEY, value);
       }
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set master(value: boolean) {
-    if (this._master !== value) {
-      this._master = value;
-      AccountViewProvider.master();
+  set showLyric(value: boolean) {
+    this.#showLyric = value;
+    void CONTEXT.context.globalState.update(SHOW_LYRIC_KEY, value);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
+  set lyric(value: Lyric) {
+    this.#lyric = value;
+    BUTTON_MANAGER.buttonLyric();
+    if (this.#master) void CONTEXT.context.globalState.update(LYRIC_KEY, value);
+    value.updatePanel?.(value.text);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/member-ordering
+  #initPlay?: boolean;
+
+  // eslint-disable-next-line @typescript-eslint/member-ordering
+  #initSeek?: number;
+
+  downInit(play?: boolean, seek?: number) {
+    if (play !== undefined) this.#initPlay = play;
+    if (seek !== undefined) this.#initSeek = seek;
+
+    if (this.#initializing <= -1) return;
+    --this.#initializing;
+    if (this.#initializing > 0) return;
+
+    if (this.#initializing === 0) {
+      if (!this.first) {
+        --this.#initializing;
+        return void this.#downInit();
+      }
+
+      switch (QUEUE_INIT) {
+        case "none":
+          return IPC.new([]);
+        case "restore":
+          return IPC.retain();
+        case "recommend": {
+          if (!AccountManager.accounts.size) return IPC.new([]);
+          const [[uid]] = AccountManager.accounts;
+          return void IPC.netease("recommendSongs", [uid])
+            .catch(() => [])
+            .then((songs) =>
+              IPC.new(songs.map((song) => QueueItemTreeItem.new({ ...song, pid: song.al.id, itemType: "q" }).data)),
+            );
+        }
+      }
+    } else void this.#downInit();
+  }
+
+  #setPlayItem(value?: QueueContent) {
+    this.#playItem = value;
+    this.like = !!(value && value instanceof QueueItemTreeItem);
+    AccountViewProvider.metadata();
+  }
+
+  async #downInit(): Promise<void> {
+    this.repeat = CONTEXT.context.globalState.get(REPEAT_KEY, false);
+
+    this.#fmUid = CONTEXT.context.globalState.get(FM_KEY, undefined);
+    if (this.#fmUid) {
+      /** From {@link fmUid}*/
+      BUTTON_MANAGER.buttonPrevious(true);
+      const item = await IPC.netease("personalFm", [this.#fmUid, false]).catch(console.error);
+      if (item) this.#setPlayItem(QueueItemTreeItem.new({ ...item, pid: item.al.id, itemType: "q" }));
+    } else this.#setPlayItem(QueueProvider.head);
+
+    if (this.#master) {
+      const play = this.#initPlay ?? false;
+      IPC.load(play, this.#initSeek);
+      BUTTON_MANAGER.buttonPlay(play);
     }
-  }
+    BUTTON_MANAGER.buttonSong(this.#playItem);
 
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set repeat(value: boolean) {
-    State._repeat = value;
-    ButtonManager.buttonRepeat(value);
-    void this.context.globalState.update(REPEAT_KEY, value);
-  }
+    this.#showLyric = CONTEXT.context.globalState.get(SHOW_LYRIC_KEY, false);
 
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set playItem(value: QueueContent | undefined) {
-    if (value !== this._playItem) {
-      this._playItem = value;
-      this.like = !!(value && value instanceof QueueItemTreeItem);
-      AccountViewProvider.metadata();
-      if (this._master) value ? IPC.load() : IPC.stop();
-    }
-  }
+    this.#lyric = CONTEXT.context.globalState.get(LYRIC_KEY, defaultLyric);
 
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set like(newValue: boolean) {
-    if (newValue !== this._like) {
-      this._like = newValue;
-      ButtonManager.buttonLike();
-    }
-  }
-
-  static set loading(value: boolean) {
-    // if (value === this._loading) return;
-    if (value)
-      ButtonManager.buttonSong(
-        `$(loading~spin) ${i18n.word.song}: ${i18n.word.loading}`
-      );
-    else if (this._playItem)
-      ButtonManager.buttonSong(
-        this._playItem.item.name,
-        this._playItem.tooltip,
-        this._playItem.item.al.picUrl,
-        this._playItem.item.al.name
-      );
-  }
-
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set fm(value: boolean) {
-    this._fm = value;
-    ButtonManager.buttonPrevious(value);
-    if (value && this._master) IPC.fmNext();
-    void this.context.globalState.update(FM_KEY, value);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set showLyric(value: boolean) {
-    State._showLyric = value;
-    void this.context.globalState.update(SHOW_LYRIC_KEY, value);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  static set lyric(value: Lyric) {
-    State._lyric = value;
-    void this.context.globalState.update(LYRIC_KEY, value);
-  }
-
-  static init(): void {
-    this.repeat = this.context.globalState.get(REPEAT_KEY, false);
-    // 需要在 IPC 连接后及登录帐号后修改
-    this.fm = this.context.globalState.get(FM_KEY, false);
-    this._showLyric = this.context.globalState.get(SHOW_LYRIC_KEY, false);
-    this._lyric = this.context.globalState.get(LYRIC_KEY, {
-      type: "o",
-      o: { time: [0], text: ["~"] },
-      t: { time: [0], text: ["~"] },
-    });
+    CONTEXT.context.subscriptions.push(
+      QueueProvider.getInstance().onDidChangeTreeData(() => {
+        this.fmUid = undefined;
+        this.playItem = QueueProvider.head;
+      }),
+    );
   }
 }
+
+export const STATE = new State();

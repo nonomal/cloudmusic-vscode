@@ -1,61 +1,71 @@
-import { IPCServer } from "../../server";
+import { CookieJar } from "tough-cookie";
+import { IPCControl } from "@cloudmusic/shared";
 import type { IPCServerMsg } from "@cloudmusic/shared";
+import { IPC_SRV } from "../../server.js";
 import type { NeteaseTypings } from "api";
-import type { Socket } from "net";
+import type { Socket } from "node:net";
 
-export class AccountState {
-  static cookies = new Map<number, NeteaseTypings.Cookie>();
+class AccountState {
+  cookies = new Map<number, CookieJar>();
 
-  static profile = new Map<number, NeteaseTypings.Profile>();
+  profile = new Map<number, NeteaseTypings.Profile>();
 
-  static get defaultCookie(): NeteaseTypings.Cookie {
+  get defaultCookie(): CookieJar {
     if (this.cookies.size) {
       const [[, cookie]] = this.cookies;
       return cookie;
-    } else return {};
+    }
+    return new CookieJar();
+  }
+
+  setStaticCookie(cookie: CookieJar) {
+    for (const url of [
+      "http://music.163.com/weapi/v1/artist/songs/",
+      "http://music.163.com/weapi/v1/comment/",
+      "http://music.163.com/eapi/v2/resource/comments/",
+      "http://music.163.com/weapi/playlist/create/",
+      "http://music.163.com/weapi/playlist/remove/",
+      "http://music.163.com/weapi/batch/",
+      "http://music.163.com/weapi/personalized/newsong",
+      "http://music.163.com/weapi/playlist/manipulate/tracks",
+    ]) {
+      cookie.setCookieSync("os=pc", url);
+      cookie.setCookieSync("appver=2.9.7", url);
+    }
+    for (const url of [
+      "http://music.163.com/weapi/resource/comments/add/",
+      "http://music.163.com/weapi/resource/comments/reply/",
+    ]) {
+      cookie.setCookieSync("os=android", url);
+    }
   }
 }
 
+export const ACCOUNT_STATE = new AccountState();
+
 export function broadcastProfiles(socket?: Socket): void {
   const msg: IPCServerMsg = {
-    t: "control.netease",
-    cookies: [...AccountState.cookies].map(([uid, c]) => ({
+    t: IPCControl.netease,
+    cookies: [...ACCOUNT_STATE.cookies].map(([uid, c]) => ({
       uid,
-      cookie: JSON.stringify(c),
+      cookie: JSON.stringify(c.serializeSync()),
     })),
-    profiles: [...AccountState.profile.values()],
+    profiles: [...ACCOUNT_STATE.profile.values()],
   };
-  socket ? IPCServer.send(socket, msg) : IPCServer.broadcast(msg);
+  socket ? IPC_SRV.send(socket, msg) : IPC_SRV.broadcast(msg);
 }
-
-export const cookieToJson = (
-  cookie: readonly string[]
-): NeteaseTypings.Cookie => {
-  if (!cookie) return {} as NeteaseTypings.Cookie;
-
-  const obj: Record<string, string> = {};
-  cookie
-    .map((x) => x.replace(/\s*Domain=[^(;|$)]+;*/, ""))
-    .join(";")
-    .split(";")
-    .forEach((i) => {
-      const [k, v] = i.split("=");
-      obj[k] = v;
-    });
-
-  return obj as NeteaseTypings.Cookie;
-};
 
 export const jsonToCookie = (json: NeteaseTypings.Cookie): string => {
   return Object.entries(json)
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
-    )
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("; ");
 };
 
-const http2Https = (url: string) => url.replace(/^http:/i, "https:");
+const http2Https = (url?: string): string => {
+  if (!url) return "";
+  if (url.startsWith("http://")) url = `https://${url.substring(7)}`;
+  return `${url}?param=384y384`;
+};
 
 export const resolveArtist = ({
   name,
@@ -64,14 +74,7 @@ export const resolveArtist = ({
   briefDesc,
   albumSize,
   musicSize,
-}: NeteaseTypings.Artist): NeteaseTypings.Artist => ({
-  name,
-  id,
-  alias,
-  briefDesc,
-  albumSize,
-  musicSize,
-});
+}: NeteaseTypings.Artist): NeteaseTypings.Artist => ({ name, id, alias, briefDesc, albumSize, musicSize });
 
 export const resolveAlbumsItem = ({
   artists,
@@ -96,29 +99,15 @@ export const resolveSongItem = ({
   alia,
   ar,
   al,
-}: NeteaseTypings.SongsItem): NeteaseTypings.SongsItem => ({
+  mv,
+}: NeteaseTypings.SongsItem | NeteaseTypings.SongsItemSt): NeteaseTypings.SongsItem => ({
   name,
   id,
   dt,
   alia: alia ?? [""],
   ar: ar.map(({ id, name }) => ({ id, name })),
   al: { id: al.id, name: al.name, picUrl: http2Https(al.picUrl) },
-});
-
-export const resolveSongItemSt = ({
-  name,
-  id,
-  dt,
-  alia,
-  ar,
-  al,
-}: NeteaseTypings.SongsItemSt): NeteaseTypings.SongsItem => ({
-  name,
-  id,
-  dt,
-  alia: alia ?? [""],
-  ar: ar.map(({ id, name }) => ({ id, name })),
-  al: { id: al.id, name: al.name, picUrl: http2Https(al.picUrl) },
+  mv: mv ? mv : undefined,
 });
 
 export const resolveAnotherSongItem = ({
@@ -128,6 +117,7 @@ export const resolveAnotherSongItem = ({
   alias,
   artists,
   album,
+  mvid,
 }: NeteaseTypings.AnotherSongItem): NeteaseTypings.SongsItem => ({
   name,
   id,
@@ -135,6 +125,7 @@ export const resolveAnotherSongItem = ({
   alia: alias,
   ar: artists.map(({ id, name }) => ({ id, name })),
   al: { id: album.id, name: album.name, picUrl: http2Https(album.picUrl) },
+  mv: mvid ? mvid : undefined,
 });
 
 export const resolvePlaylistItem = ({
@@ -178,11 +169,7 @@ export const resolveSimplyUserDetail = ({
   userId,
   nickname,
   avatarUrl,
-}: NeteaseTypings.SimplyUserDetail): NeteaseTypings.SimplyUserDetail => ({
-  userId,
-  nickname,
-  avatarUrl,
-});
+}: NeteaseTypings.SimplyUserDetail): NeteaseTypings.SimplyUserDetail => ({ userId, nickname, avatarUrl });
 
 export const resolveComment = ({
   user,
@@ -245,4 +232,10 @@ export const resolveProgramDetail = ({
   description,
   id,
   rid: radio.id,
+});
+
+export const resolveMvDetail = ({ name, cover, brs }: NeteaseTypings.MvDetail): NeteaseTypings.MvDetail => ({
+  name,
+  cover: http2Https(cover),
+  brs,
 });

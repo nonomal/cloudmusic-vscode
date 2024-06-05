@@ -1,14 +1,8 @@
-import {
-  AccountState,
-  resolvePlaylistItem,
-  resolveSongItem,
-  resolveSongItemSt,
-  resolveUserDetail,
-} from "./helper";
-import { apiRequest, weapiRequest } from "./request";
+import { ACCOUNT_STATE, resolvePlaylistItem, resolveSongItem, resolveUserDetail } from "./helper.js";
+import { apiRequest, weapiRequest } from "./request.js";
+import { API_CACHE } from "../../cache.js";
 import type { NeteaseTypings } from "api";
-import { apiCache } from "../../cache";
-import { songDetail } from ".";
+import { songDetail } from "./song.js";
 
 type PlaylistCatlistItem = { name: string; category?: number; hot: boolean };
 
@@ -16,7 +10,7 @@ type PlaylistCatlist = Record<string, readonly PlaylistCatlistItem[]>;
 
 export async function playlistCatlist(): Promise<PlaylistCatlist> {
   const key = "playlist_catlist";
-  const value = apiCache.get<PlaylistCatlist>(key);
+  const value = API_CACHE.get<PlaylistCatlist>(key);
   if (value) return value;
   const res = await weapiRequest<{
     sub: readonly PlaylistCatlistItem[];
@@ -30,42 +24,33 @@ export async function playlistCatlist(): Promise<PlaylistCatlist> {
       .filter((value) => value.category && `${value.category}` === key)
       .map(({ name, hot }) => ({ name, hot }));
   }
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
-export async function playlistCreate(
-  name: string,
-  privacy: 0 | 10
-): Promise<boolean> {
+export async function playlistCreate(uid: number, name: string, privacy: 0 | 10): Promise<boolean> {
   return !!(await weapiRequest(
-    "music.163.com/api/playlist/create",
+    "music.163.com/weapi/playlist/create",
     {
       name,
       privacy, //0 为普通歌单，10 为隐私歌单
       type: "NORMAL", // NORMAL|VIDEO
     },
-    { ...AccountState.defaultCookie, os: "pc" }
+    ACCOUNT_STATE.cookies.get(uid),
   ));
 }
 
-export async function playlistDelete(
-  uid: number,
-  id: number
-): Promise<boolean> {
+export async function playlistDelete(uid: number, id: number): Promise<boolean> {
   return !!(await weapiRequest(
     `music.163.com/weapi/playlist/remove`,
     { ids: `[${id}]` },
-    { ...AccountState.cookies.get(uid), os: "pc" }
+    ACCOUNT_STATE.cookies.get(uid),
   ));
 }
 
-export async function playlistDetail(
-  uid: number,
-  id: number
-): Promise<readonly NeteaseTypings.SongsItem[]> {
+export async function playlistDetail(uid: number, id: number): Promise<readonly NeteaseTypings.SongsItem[]> {
   const key = `playlist_detail${id}`;
-  const value = apiCache.get<readonly NeteaseTypings.SongsItem[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.SongsItem[]>(key);
   if (value) return value;
   let ret!: readonly NeteaseTypings.SongsItem[];
   const res = await apiRequest<{
@@ -74,68 +59,50 @@ export async function playlistDetail(
       trackIds: readonly NeteaseTypings.TrackIdsItem[];
     };
     privileges: readonly { st: number }[];
-  }>(
-    "music.163.com/api/v6/playlist/detail",
-    { id, n: 100000, s: 8 },
-    AccountState.cookies.get(uid)
-  );
+  }>("music.163.com/api/v6/playlist/detail", { id, n: 100000, s: 8 }, ACCOUNT_STATE.cookies.get(uid));
   if (!res) return [];
   const {
     playlist: { tracks, trackIds },
     privileges,
   } = res;
   const ids = trackIds.map(({ id }) => id);
-  if (tracks.length === trackIds.length)
-    ret = tracks.filter((_, i) => privileges[i].st >= 0).map(resolveSongItem);
+  if (tracks.length === trackIds.length) ret = tracks.filter((_, i) => privileges[i].st >= 0).map(resolveSongItem);
   else ret = await songDetail(uid, ids);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
-export async function highqualityTags(): Promise<
-  readonly PlaylistCatlistItem[]
-> {
+export async function highqualityTags(): Promise<readonly PlaylistCatlistItem[]> {
   const key = "playlist_highquality_tags";
-  const value = apiCache.get<readonly PlaylistCatlistItem[]>(key);
+  const value = API_CACHE.get<readonly PlaylistCatlistItem[]>(key);
   if (value) return value;
-  const res = await weapiRequest<{
-    tags: readonly {
-      name: string;
-      hot: boolean;
-    }[];
-  }>("music.163.com/api/playlist/highquality/tags");
+  const res = await weapiRequest<{ tags: readonly { name: string; hot: boolean }[] }>(
+    "music.163.com/weapi/playlist/highquality/tags",
+  );
   if (!res) return [];
   const ret = res.tags.map(({ name, hot }) => ({ name, hot }));
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
-export async function playlistSubscribe(
-  uid: number,
-  id: number,
-  t: "subscribe" | "unsubscribe"
-): Promise<boolean> {
-  return !!(await weapiRequest(
-    `music.163.com/weapi/playlist/${t}`,
-    { id },
-    AccountState.cookies.get(uid)
-  ));
+export async function playlistSubscribe(uid: number, id: number, t: "subscribe" | "unsubscribe"): Promise<boolean> {
+  return !!(await weapiRequest(`music.163.com/weapi/playlist/${t}`, { id }, ACCOUNT_STATE.cookies.get(uid)));
 }
 
 export async function playlistSubscribers(
   id: number,
   limit: number,
-  offset: number
+  offset: number,
 ): Promise<readonly NeteaseTypings.UserDetail[]> {
   const key = `playlist_subscribers${id}-${limit}-${offset}`;
-  const value = apiCache.get<readonly NeteaseTypings.UserDetail[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.UserDetail[]>(key);
   if (value) return value;
   const res = await weapiRequest<{
     subscribers: readonly NeteaseTypings.UserDetail[];
   }>("music.163.com/weapi/playlist/subscribers", { id, limit, offset });
   if (!res) return [];
   const ret = res.subscribers.map(resolveUserDetail);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
@@ -143,75 +110,81 @@ export async function playlistTracks(
   uid: number,
   op: "add" | "del",
   pid: number,
-  tracks: readonly number[]
+  tracks: readonly number[],
 ): Promise<boolean> {
-  return !!(await weapiRequest(
-    "music.163.com/api/playlist/manipulate/tracks",
+  const res = await weapiRequest<{ code: number }>(
+    "music.163.com/weapi/playlist/manipulate/tracks",
     { op, pid, trackIds: JSON.stringify(tracks), imme: "true" },
-    { ...AccountState.cookies.get(uid), os: "pc" }
+    ACCOUNT_STATE.cookies.get(uid),
+  );
+  if (!res) return false;
+  if (res.code === 200) return true;
+  if (res.code !== 512) return false;
+
+  return !!(await weapiRequest(
+    "music.163.com/weapi/playlist/manipulate/tracks",
+    { op, pid, trackIds: JSON.stringify([...tracks, ...tracks]), imme: "true" },
+    ACCOUNT_STATE.cookies.get(uid),
   ));
 }
 
-export async function playlistUpdate(
-  id: number,
-  name: string,
-  desc: string
-): Promise<boolean> {
+export async function playlistUpdate(uid: number, id: number, name: string, desc: string): Promise<boolean> {
   return !!(await weapiRequest(
     "music.163.com/weapi/batch",
     {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       "/api/playlist/desc/update": `{"id":${id},"desc":"${desc}"}`,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       "/api/playlist/update/name": `{"id":${id},"name":"${name}"}`,
     },
-    { ...AccountState.defaultCookie, os: "pc" }
+    ACCOUNT_STATE.cookies.get(uid),
   ));
+}
+
+export function playlistUpdatePlaycount(id: number) {
+  return weapiRequest("music.163.com/weapi/playlist/update/playcount", { id });
 }
 
 export async function playmodeIntelligenceList(
   songId: number,
-  playlistId: number
+  playlistId: number,
 ): Promise<readonly NeteaseTypings.SongsItem[]> {
   const res = await weapiRequest<{
     data: readonly { songInfo: NeteaseTypings.SongsItemSt }[];
-  }>("music.163.com/weapi/playmode/intelligence/list", {
-    songId,
-    type: "fromPlayOne",
-    playlistId,
-    startMusicId: songId,
-    count: 1,
-  });
+  }>(
+    "music.163.com/weapi/playmode/intelligence/list",
+    { songId, type: "fromPlayOne", playlistId, startMusicId: songId, count: 1 },
+    // TODO
+    // ACCOUNT_STATE .cookies.get(uid)
+  );
   if (!res) return [];
-  return res.data.map(({ songInfo }) => resolveSongItemSt(songInfo));
+  return res.data.map(({ songInfo }) => resolveSongItem(songInfo));
 }
 
 export async function simiPlaylist(
   songid: number,
   limit: number,
-  offset: number
+  offset: number,
 ): Promise<readonly NeteaseTypings.PlaylistItem[]> {
   const key = `simi_playlist${songid}-${limit}-${offset}`;
-  const value = apiCache.get<readonly NeteaseTypings.PlaylistItem[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.PlaylistItem[]>(key);
   if (value) return value;
   const res = await weapiRequest<{
     playlists: readonly NeteaseTypings.RawPlaylistItem[];
-  }>("music.163.com/weapi/discovery/simiPlaylist", {
-    songid,
-    limit,
-    offset,
-  });
+  }>("music.163.com/weapi/discovery/simiPlaylist", { songid, limit, offset });
   if (!res) return [];
   const ret = res.playlists.map(resolvePlaylistItem);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
 export async function topPlaylist(
   cat: string,
   limit: number,
-  offset: number
+  offset: number,
 ): Promise<readonly NeteaseTypings.PlaylistItem[]> {
   const key = `top_playlist${cat}-${limit}-${offset}`;
-  const value = apiCache.get<readonly NeteaseTypings.PlaylistItem[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.PlaylistItem[]>(key);
   if (value) return value;
   const res = await weapiRequest<{
     playlists: readonly NeteaseTypings.PlaylistItem[];
@@ -224,42 +197,40 @@ export async function topPlaylist(
   });
   if (!res) return [];
   const ret = res.playlists.map(resolvePlaylistItem);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
 export async function topPlaylistHighquality(
   cat: string,
-  limit: number
+  limit: number,
 ): Promise<readonly NeteaseTypings.PlaylistItem[]> {
   const key = `top_playlist_highquality${cat}-${limit}`;
-  const value = apiCache.get<readonly NeteaseTypings.PlaylistItem[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.PlaylistItem[]>(key);
   if (value) return value;
   const res = await weapiRequest<{
     playlists: readonly NeteaseTypings.PlaylistItem[];
-  }>("music.163.com/api/playlist/highquality/list", {
-    cat: cat, // 全部,华语,欧美,韩语,日语,粤语,小语种,运动,ACG,影视原声,流行,摇滚,后摇,古风,民谣,轻音乐,电子,器乐,说唱,古典,爵士
+  }>("music.163.com/weapi/playlist/highquality/list", {
+    cat, // 全部,华语,欧美,韩语,日语,粤语,小语种,运动,ACG,影视原声,流行,摇滚,后摇,古风,民谣,轻音乐,电子,器乐,说唱,古典,爵士
     limit,
     lasttime: 0, // 歌单updateTime
     total: true,
   });
   if (!res) return [];
   const ret = res.playlists.map(resolvePlaylistItem);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
 
-export async function toplist(): Promise<
-  readonly NeteaseTypings.PlaylistItem[]
-> {
+export async function toplist(): Promise<readonly NeteaseTypings.PlaylistItem[]> {
   const key = "toplist";
-  const value = apiCache.get<readonly NeteaseTypings.PlaylistItem[]>(key);
+  const value = API_CACHE.get<readonly NeteaseTypings.PlaylistItem[]>(key);
   if (value) return value;
   const res = await apiRequest<{
     list: readonly NeteaseTypings.RawPlaylistItem[];
   }>("music.163.com/api/toplist");
   if (!res) return [];
   const ret = res.list.map(resolvePlaylistItem);
-  apiCache.set(key, ret);
+  API_CACHE.set(key, ret);
   return ret;
 }
